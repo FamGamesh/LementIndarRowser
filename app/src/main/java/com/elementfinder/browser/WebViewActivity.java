@@ -125,11 +125,20 @@ public class WebViewActivity extends AppCompatActivity {
                 @Override
                 public void onPageFinished(WebView view, String url) {
                     super.onPageFinished(view, url);
-                    // Add delay to ensure page is fully loaded
+                    // Add delay to ensure page is fully loaded, then inject scripts
                     new Handler(Looper.getMainLooper()).postDelayed(() -> {
                         injectSelectorScript();
-                        Toast.makeText(WebViewActivity.this, "Page loaded. Long press elements to view selectors!", Toast.LENGTH_LONG).show();
+                        // Show confirmation message after a short delay to ensure injection is complete
+                        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                            Toast.makeText(WebViewActivity.this, "Page loaded. Long press elements to view selectors!", Toast.LENGTH_LONG).show();
+                        }, 500);
                     }, 1000);
+                }
+                
+                @Override
+                public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                    super.onPageStarted(view, url, favicon);
+                    Log.d(TAG, "Page started loading: " + url);
                 }
                 
                 @Override
@@ -177,21 +186,39 @@ public class WebViewActivity extends AppCompatActivity {
                                     isLongPressTriggered = true;
                                     Log.d(TAG, "Long press detected at: " + downX + ", " + downY);
                                     
-                                    // Execute JavaScript to find element at coordinates
-                                    String jsCode = String.format(
-                                        "try { " +
-                                        "  var element = document.elementFromPoint(%f, %f); " +
-                                        "  if (element) { " +
-                                        "    handleLongPress(%f, %f); " +
-                                        "  } else { " +
-                                        "    Android.showError('No element found at coordinates'); " +
-                                        "  } " +
-                                        "} catch(e) { " +
-                                        "  Android.showError('Error: ' + e.message); " +
-                                        "}", downX, downY, downX, downY);
-                                    
-                                    webView.evaluateJavascript(jsCode, result -> {
-                                        Log.d(TAG, "JavaScript execution result: " + result);
+                                    // Ensure scripts are loaded before executing
+                                    ensureScriptsLoaded(() -> {
+                                        // Convert Android coordinates to web coordinates
+                                        float webX = downX / webView.getScaleX();
+                                        float webY = (downY - getWebViewContentTop()) / webView.getScaleY();
+                                        
+                                        // Execute JavaScript to find element at coordinates
+                                        String jsCode = String.format(Locale.US,
+                                            "(function() { " +
+                                            "  try { " +
+                                            "    console.log('Long press at coordinates: %f, %f'); " +
+                                            "    var element = document.elementFromPoint(%f, %f); " +
+                                            "    console.log('Element found:', element); " +
+                                            "    if (element && typeof handleLongPress === 'function') { " +
+                                            "      handleLongPress(%f, %f); " +
+                                            "      return 'success'; " +
+                                            "    } else if (!element) { " +
+                                            "      Android.showError('No element found at coordinates (%f, %f)'); " +
+                                            "      return 'no_element'; " +
+                                            "    } else { " +
+                                            "      Android.showError('handleLongPress function not available'); " +
+                                            "      return 'no_function'; " +
+                                            "    } " +
+                                            "  } catch(e) { " +
+                                            "    console.error('Long press error:', e); " +
+                                            "    Android.showError('Long press error: ' + e.message); " +
+                                            "    return 'error'; " +
+                                            "  } " +
+                                            "})()", webX, webY, webX, webY, webX, webY, webX, webY);
+                                        
+                                        webView.evaluateJavascript(jsCode, result -> {
+                                            Log.d(TAG, "Long press JavaScript result: " + result);
+                                        });
                                     });
                                     
                                     // Show visual feedback
@@ -214,14 +241,34 @@ public class WebViewActivity extends AppCompatActivity {
                                 final float upX = event.getX();
                                 final float upY = event.getY();
                                 
-                                String jsCode = String.format(
-                                    "try { " +
-                                    "  recordClick(%f, %f); " +
-                                    "} catch(e) { " +
-                                    "  Android.showError('Record error: ' + e.message); " +
-                                    "}", upX, upY);
-                                
-                                webView.evaluateJavascript(jsCode, null);
+                                // Ensure scripts are loaded before executing
+                                ensureScriptsLoaded(() -> {
+                                    // Convert Android coordinates to web coordinates
+                                    float webX = upX / webView.getScaleX();
+                                    float webY = (upY - getWebViewContentTop()) / webView.getScaleY();
+                                    
+                                    String jsCode = String.format(Locale.US,
+                                        "(function() { " +
+                                        "  try { " +
+                                        "    console.log('Recording click at coordinates: %f, %f'); " +
+                                        "    if (typeof recordClick === 'function') { " +
+                                        "      recordClick(%f, %f); " +
+                                        "      return 'success'; " +
+                                        "    } else { " +
+                                        "      Android.showError('recordClick function not available'); " +
+                                        "      return 'no_function'; " +
+                                        "    } " +
+                                        "  } catch(e) { " +
+                                        "    console.error('Record click error:', e); " +
+                                        "    Android.showError('Record error: ' + e.message); " +
+                                        "    return 'error'; " +
+                                        "  } " +
+                                        "})()", webX, webY, webX, webY);
+                                    
+                                    webView.evaluateJavascript(jsCode, result -> {
+                                        Log.d(TAG, "Record click JavaScript result: " + result);
+                                    });
+                                });
                             }
                             break;
                             
@@ -262,14 +309,66 @@ public class WebViewActivity extends AppCompatActivity {
             String script = getSelectorScript();
             webView.evaluateJavascript(script, result -> {
                 Log.d(TAG, "Selector script injected, result: " + result);
+                // Verify the script was loaded by checking for our functions
+                verifyScriptLoaded();
             });
         } catch (Exception e) {
             Log.e(TAG, "Error injecting script", e);
         }
     }
     
+    private void ensureScriptsLoaded(Runnable callback) {
+        // First check if our functions exist
+        webView.evaluateJavascript(
+            "(typeof handleLongPress === 'function' && typeof recordClick === 'function')", 
+            result -> {
+                if ("true".equals(result)) {
+                    // Scripts are loaded, execute callback
+                    callback.run();
+                } else {
+                    // Scripts not loaded, re-inject and then execute callback
+                    Log.d(TAG, "Scripts not loaded, re-injecting...");
+                    String script = getSelectorScript();
+                    webView.evaluateJavascript(script, reinjectResult -> {
+                        Log.d(TAG, "Re-injection result: " + reinjectResult);
+                        // Wait a bit for the script to be processed, then execute callback
+                        new Handler(Looper.getMainLooper()).postDelayed(callback, 100);
+                    });
+                }
+            }
+        );
+    }
+    
+    private void verifyScriptLoaded() {
+        webView.evaluateJavascript(
+            "(typeof handleLongPress === 'function' && typeof recordClick === 'function')", 
+            result -> {
+                if ("true".equals(result)) {
+                    Log.d(TAG, "Script functions verified successfully");
+                } else {
+                    Log.w(TAG, "Script functions not available after injection");
+                }
+            }
+        );
+    }
+    
+    private float getWebViewContentTop() {
+        // Account for any toolbar or status bar offset
+        try {
+            // Get the WebView's position relative to its parent
+            int[] location = new int[2];
+            webView.getLocationInWindow(location);
+            return location[1] - webView.getTop();
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting WebView content top", e);
+            return 0;
+        }
+    }
+    
     private String getSelectorScript() {
         return "javascript:" +
+            // Ensure we don't double-inject
+            "if (typeof elementFinderBrowser === 'undefined') {" +
             "console.log('Element Finder Browser: Selector script loading...');" +
             "var elementFinderBrowser = {" +
             "  generateCSSSelector: function(element) {" +
@@ -405,41 +504,63 @@ public class WebViewActivity extends AppCompatActivity {
             "  }" +
             "};" +
             "" +
-            "function handleLongPress(x, y) {" +
+            "// Global functions that can be called from Android" +
+            "window.handleLongPress = function(x, y) {" +
             "  try {" +
             "    console.log('handleLongPress called with coordinates:', x, y);" +
             "    var element = document.elementFromPoint(x, y);" +
             "    console.log('Element found:', element);" +
             "    " +
-            "    if (element) {" +
+            "    if (element && element !== document.documentElement && element !== document.body) {" +
             "      var selectors = elementFinderBrowser.getBestSelector(element);" +
             "      console.log('Selectors generated:', selectors);" +
-            "      Android.showSelectorDialog(JSON.stringify(selectors));" +
+            "      if (typeof Android !== 'undefined' && Android.showSelectorDialog) {" +
+            "        Android.showSelectorDialog(JSON.stringify(selectors));" +
+            "      } else {" +
+            "        console.error('Android interface not available');" +
+            "      }" +
             "    } else {" +
-            "      Android.showError('No element found at coordinates');" +
+            "      console.log('No valid element found at coordinates');" +
+            "      if (typeof Android !== 'undefined' && Android.showError) {" +
+            "        Android.showError('No element found at coordinates (' + x + ', ' + y + ')');" +
+            "      }" +
             "    }" +
             "  } catch (e) {" +
             "    console.error('Error in handleLongPress:', e);" +
-            "    Android.showError('Error in handleLongPress: ' + e.message);" +
+            "    if (typeof Android !== 'undefined' && Android.showError) {" +
+            "      Android.showError('Error in handleLongPress: ' + e.message);" +
+            "    }" +
             "  }" +
-            "}" +
+            "};" +
             "" +
-            "function recordClick(x, y) {" +
+            "window.recordClick = function(x, y) {" +
             "  try {" +
             "    console.log('recordClick called with coordinates:', x, y);" +
             "    var element = document.elementFromPoint(x, y);" +
-            "    if (element) {" +
+            "    if (element && element !== document.documentElement && element !== document.body) {" +
             "      var selectors = elementFinderBrowser.getBestSelector(element);" +
             "      console.log('Recording selector:', selectors);" +
-            "      Android.recordSelector(selectors.recommended, selectors.elementName);" +
+            "      if (typeof Android !== 'undefined' && Android.recordSelector) {" +
+            "        Android.recordSelector(selectors.recommended, selectors.elementName);" +
+            "      } else {" +
+            "        console.error('Android interface not available for recording');" +
+            "      }" +
+            "    } else {" +
+            "      console.log('No valid element found for recording at coordinates');" +
             "    }" +
             "  } catch (e) {" +
             "    console.error('Error in recordClick:', e);" +
-            "    Android.showError('Error in recordClick: ' + e.message);" +
+            "    if (typeof Android !== 'undefined' && Android.showError) {" +
+            "      Android.showError('Error in recordClick: ' + e.message);" +
+            "    }" +
             "  }" +
-            "}" +
+            "};" +
             "" +
-            "console.log('Element Finder Browser: Selector script loaded successfully');";
+            "console.log('Element Finder Browser: Selector script loaded successfully');" +
+            "} else {" +
+            "  console.log('Element Finder Browser: Script already loaded');" +
+            "}";
+    }
     }
     
     @Override
