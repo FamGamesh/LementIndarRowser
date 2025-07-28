@@ -234,63 +234,27 @@ public class BrowserActivity extends AppCompatActivity {
         String desktopUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
         webSettings.setUserAgentString(desktopUserAgent);
         
-        // Advanced stealth settings
-        webSettings.setMediaPlaybackRequiresUserGesture(false);
-        webSettings.setAllowUniversalAccessFromFileURLs(false);
-        webSettings.setAllowFileAccessFromFileURLs(false);
+        Log.d(TAG, "🖥️ Advanced Desktop Mode: User Agent set to undetectable Chrome desktop");
         
-        // Disable mobile-specific features
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            webSettings.setSafeBrowsingEnabled(false);
+        // Enhanced viewport configuration
+        webSettings.setLayoutAlgorithm(WebSettings.LayoutAlgorithm.NORMAL);
+        webSettings.setUseWideViewPort(true);
+        webSettings.setLoadWithOverviewMode(true);
+        webSettings.setSupportZoom(true);
+        webSettings.setBuiltInZoomControls(true);
+        webSettings.setDisplayZoomControls(false); // Hide default zoom controls
+        
+        // CRITICAL Desktop Simulation Settings
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+            // Force far zoom density (desktop style)
+            webSettings.setDefaultZoom(WebSettings.ZoomDensity.FAR);
+            
+            // Enable hardware acceleration for smooth desktop-like scrolling
+            webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         }
         
-        // Force desktop viewport with comprehensive injection
-        String stealthScript = 
-            "javascript:(function() {" +
-            "  // Remove existing viewport meta" +
-            "  var existing = document.querySelector('meta[name=\"viewport\"]');" +
-            "  if (existing) existing.remove();" +
-            "  " +
-            "  // Inject desktop viewport" +
-            "  var meta = document.createElement('meta');" +
-            "  meta.name = 'viewport';" +
-            "  meta.content = 'width=1366, initial-scale=0.65, maximum-scale=3.0, user-scalable=yes';" +
-            "  document.head.appendChild(meta);" +
-            "  " +
-            "  // Anti-detection CSS injection" +
-            "  var style = document.createElement('style');" +
-            "  style.innerHTML = '" +
-            "    @media (max-width: 1365px) { body { min-width: 1366px !important; } }" +
-            "    * { -webkit-text-size-adjust: 100% !important; -webkit-touch-callout: none !important; }" +
-            "    body { zoom: 1 !important; min-width: 1366px !important; cursor: default !important; }" +
-            "    html { -ms-touch-action: none !important; touch-action: none !important; }" +
-            "    ::-webkit-scrollbar { width: 12px; height: 12px; }" +
-            "    ::-webkit-scrollbar-track { background: #f1f1f1; }" +
-            "    ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 6px; }" +
-            "  ';" +
-            "  document.head.appendChild(style);" +
-            "  " +
-            "  // Remove mobile detection classes" +
-            "  document.documentElement.classList.remove('mobile', 'touch', 'android', 'phone', 'tablet');" +
-            "  document.documentElement.classList.add('desktop', 'no-touch', 'windows', 'chrome');" +
-            "  if (document.body) {" +
-            "    document.body.classList.remove('mobile', 'touch', 'android', 'phone', 'tablet');" +
-            "    document.body.classList.add('desktop', 'no-touch', 'windows', 'chrome');" +
-            "  }" +
-            "  " +
-            "  // Override touch event handlers globally" +
-            "  ['touchstart', 'touchend', 'touchmove', 'touchcancel'].forEach(function(event) {" +
-            "    document.addEventListener(event, function(e) { e.stopImmediatePropagation(); }, true);" +
-            "  });" +
-            "})()";
-        
-        webView.loadUrl(stealthScript);
-        
-        // Inject comprehensive anti-detection immediately
-        Handler handler = new Handler(Looper.getMainLooper());
-        handler.postDelayed(() -> {
-            injectAdvancedDesktopScript();
-        }, 100);
+        // Enable file downloads with proper headers
+        webView.setDownloadListener(new IntelligentDownloadListener());
     }
     
     // INTELLIGENT LONG PRESS CONTEXT MENU SETUP
@@ -299,94 +263,71 @@ public class BrowserActivity extends AppCompatActivity {
             @Override
             public boolean onLongClick(View v) {
                 WebView.HitTestResult hitTestResult = webView.getHitTestResult();
+                
                 if (hitTestResult != null) {
-                    showIntelligentContextMenu(hitTestResult);
-                    return true;
+                    Log.d(TAG, "🎯 Long press detected - Type: " + hitTestResult.getType());
+                    
+                    // Delay context menu to ensure proper hit test result
+                    new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                        showIntelligentContextMenu(hitTestResult);
+                    }, 100);
+                    
+                    return true; // Consume the event
                 }
+                
                 return false;
             }
         });
-        
-        Log.d(TAG, "🎯 Intelligent long press context menu enabled");
     }
     
-    // INTELLIGENT CONTEXT MENU DISPLAY
     private void showIntelligentContextMenu(WebView.HitTestResult hitTestResult) {
         int type = hitTestResult.getType();
         String extra = hitTestResult.getExtra();
         
-        Log.d(TAG, "🎯 Long press detected - Type: " + type + ", Extra: " + extra);
+        Log.d(TAG, "📋 Showing context menu - Type: " + type + ", Extra: " + extra);
         
-        if (extra == null) return;
-        
-        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
+        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
+        builder.setTitle("Page Options");
         
         java.util.List<String> options = new java.util.ArrayList<>();
         java.util.List<Runnable> actions = new java.util.ArrayList<>();
         
-        switch (type) {
-            case WebView.HitTestResult.IMAGE_TYPE:
-            case WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE:
-                builder.setTitle("🖼️ Image Options");
-                
-                // Download Image
-                options.add("📥 Download Image");
-                actions.add(() -> downloadFile(extra, getIntelligentFileName(extra, "image")));
-                
-                // Copy Image Link
-                options.add("🔗 Copy Image Link");
-                actions.add(() -> copyToClipboard(extra, "Image link copied"));
-                
-                // Share Image Link
-                options.add("🔄 Share Image Link");
-                actions.add(() -> shareLink(extra, "Image"));
-                
-                break;
-                
-            case WebView.HitTestResult.ANCHOR_TYPE:
-            case WebView.HitTestResult.SRC_ANCHOR_TYPE:
-                builder.setTitle("🔗 Link Options");
-                
-                // Copy Link
-                options.add("🔗 Copy Link");
-                actions.add(() -> copyToClipboard(extra, "Link copied"));
-                
-                // Share Link
-                options.add("🔄 Share Link"); 
-                actions.add(() -> shareLink(extra, "Link"));
-                
-                // Download Link (if it looks like a file)
-                if (isDownloadableLink(extra)) {
-                    options.add("📥 Download File");
-                    actions.add(() -> downloadFile(extra, getIntelligentFileName(extra, "file")));
-                }
-                
-                break;
-                
-            default:
-                // General page options
-                builder.setTitle("📄 Page Options");
-                
-                // Print Page
-                options.add("🖨️ Print Page");
-                actions.add(this::printPage);
-                
-                // Copy Page Link
-                options.add("🔗 Copy Page Link");
-                actions.add(() -> copyToClipboard(webView.getUrl(), "Page link copied"));
-                
-                // Share Page
-                options.add("🔄 Share Page");
-                actions.add(() -> shareLink(webView.getUrl(), "Page"));
-                
-                break;
+        // Download option - intelligent file detection
+        if (type == WebView.HitTestResult.SRC_ANCHOR_TYPE || 
+            type == WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE ||
+            type == WebView.HitTestResult.IMAGE_TYPE ||
+            (extra != null && (extra.contains("http") || extra.contains("."))) ) {
+            
+            options.add("🔽 Download (Intelligent)");
+            actions.add(() -> intelligentDownload(extra != null ? extra : webView.getUrl()));
         }
         
-        if (options.isEmpty()) return;
+        // Print whole page
+        options.add("🖨️ Print (Whole Page)");
+        actions.add(() -> printPage());
         
-        // Add Copy Link Text option for all types
-        options.add("📝 Copy Link Text");
-        actions.add(() -> copyLinkText(extra));
+        // Copy link options
+        if (type == WebView.HitTestResult.SRC_ANCHOR_TYPE || 
+            type == WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE) {
+            
+            options.add("📋 Copy Link");
+            actions.add(() -> copyToClipboard(extra, "Link copied to clipboard"));
+            
+            options.add("📤 Share Link");
+            actions.add(() -> shareLink(extra, "Link"));
+            
+            options.add("📝 Copy Link Text");
+            actions.add(() -> copyLinkText(extra));
+        }
+        
+        // Current page options
+        if (type == WebView.HitTestResult.UNKNOWN_TYPE || options.isEmpty()) {
+            options.add("📋 Copy Page URL");
+            actions.add(() -> copyToClipboard(webView.getUrl(), "Page URL copied"));
+            
+            options.add("📤 Share Page");
+            actions.add(() -> shareLink(webView.getUrl(), "Page"));
+        }
         
         String[] optionsArray = options.toArray(new String[0]);
         
@@ -394,8 +335,8 @@ public class BrowserActivity extends AppCompatActivity {
             try {
                 actions.get(which).run();
             } catch (Exception e) {
-                Log.e(TAG, "💥 Error executing context menu action", e);
-                Toast.makeText(BrowserActivity.this, "Action failed", Toast.LENGTH_SHORT).show();
+                Log.e(TAG, "Error executing context menu action", e);
+                Toast.makeText(BrowserActivity.this, "Action failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
             }
         });
         
@@ -403,8 +344,53 @@ public class BrowserActivity extends AppCompatActivity {
         builder.show();
     }
     
-    // INTELLIGENT FILE NAME GENERATION
-    private String getIntelligentFileName(String url, String type) {
+    private void intelligentDownload(String url) {
+        Log.d(TAG, "🎯 Intelligent download requested for: " + url);
+        
+        if (url == null || url.isEmpty()) {
+            Toast.makeText(this, "No downloadable content detected", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        // Extract intelligent filename
+        String filename = getIntelligentFileName(url, "download");
+        
+        Log.d(TAG, "📁 Intelligent filename: " + filename);
+        
+        // Start download
+        downloadFile(url, filename);
+    }
+    
+    private void copyToClipboard(String text, String message) {
+        if (text != null) {
+            android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            android.content.ClipData clip = android.content.ClipData.newPlainText("Browser", text);
+            clipboard.setPrimaryClip(clip);
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    private void shareLink(String url, String type) {
+        if (url != null) {
+            Intent shareIntent = new Intent(Intent.ACTION_SEND);
+            shareIntent.setType("text/plain");
+            shareIntent.putExtra(Intent.EXTRA_TEXT, url);
+            shareIntent.putExtra(Intent.EXTRA_SUBJECT, type + " from Real Desktop Browser");
+            startActivity(Intent.createChooser(shareIntent, "Share " + type));
+        }
+    }
+    
+    private void copyLinkText(String url) {
+        // Extract readable text from URL
+        if (url != null) {
+            String linkText = url.replaceAll("https?://", "").replaceAll("/", " > ");
+            copyToClipboard(linkText, "Link text copied");
+        }
+    }
+    
+    private String getIntelligentFileName(String url, String defaultName) {
+        if (url == null) return defaultName;
+        
         try {
             // Extract filename from URL
             String filename = url.substring(url.lastIndexOf('/') + 1);
@@ -414,129 +400,71 @@ public class BrowserActivity extends AppCompatActivity {
                 filename = filename.substring(0, filename.indexOf("?"));
             }
             
-            // If no extension or filename, generate one
-            if (filename.isEmpty() || !filename.contains(".")) {
-                String extension = "";
-                
-                // Detect file type from URL patterns
-                if (url.contains(".jpg") || url.contains(".jpeg")) extension = ".jpg";
-                else if (url.contains(".png")) extension = ".png";
-                else if (url.contains(".gif")) extension = ".gif";
-                else if (url.contains(".pdf")) extension = ".pdf";
-                else if (url.contains(".mp4")) extension = ".mp4";
-                else if (url.contains(".mp3")) extension = ".mp3";
-                else if (url.contains(".zip")) extension = ".zip";
-                else {
-                    // Default based on type
-                    switch (type) {
-                        case "image": extension = ".jpg"; break;
-                        case "video": extension = ".mp4"; break;
-                        case "audio": extension = ".mp3"; break;
-                        default: extension = ".file"; break;
-                    }
-                }
-                
-                filename = "download_" + System.currentTimeMillis() + extension;
+            // If no extension, try to determine from URL context
+            if (!filename.contains(".")) {
+                if (url.contains("pdf")) filename += ".pdf";
+                else if (url.contains("jpg") || url.contains("jpeg")) filename += ".jpg";
+                else if (url.contains("png")) filename += ".png";
+                else if (url.contains("gif")) filename += ".gif";
+                else if (url.contains("mp4")) filename += ".mp4";
+                else if (url.contains("zip")) filename += ".zip";
+                else filename += ".html";
             }
             
-            Log.d(TAG, "🏷️ Generated intelligent filename: " + filename);
-            return filename;
+            return filename.isEmpty() ? defaultName : filename;
             
         } catch (Exception e) {
-            Log.e(TAG, "💥 Error generating filename", e);
-            return "download_" + System.currentTimeMillis() + ".file";
+            Log.w(TAG, "Error extracting filename", e);
+            return defaultName;
         }
     }
     
-    // CHECK IF LINK IS DOWNLOADABLE
-    private boolean isDownloadableLink(String url) {
-        if (url == null) return false;
-        
-        String lowerUrl = url.toLowerCase();
-        return lowerUrl.contains(".pdf") || lowerUrl.contains(".zip") || 
-               lowerUrl.contains(".rar") || lowerUrl.contains(".mp4") ||
-               lowerUrl.contains(".mp3") || lowerUrl.contains(".jpg") ||
-               lowerUrl.contains(".png") || lowerUrl.contains(".gif") ||
-               lowerUrl.contains(".doc") || lowerUrl.contains(".apk") ||
-               lowerUrl.contains("download");
-    }
-    
-    // COPY TO CLIPBOARD
-    private void copyToClipboard(String text, String message) {
-        android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-        android.content.ClipData clip = android.content.ClipData.newPlainText("Browser", text);
-        clipboard.setPrimaryClip(clip);
-        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
-        Log.d(TAG, "📋 Copied to clipboard: " + text);
-    }
-    
-    // SHARE LINK
-    private void shareLink(String url, String type) {
-        Intent shareIntent = new Intent(Intent.ACTION_SEND);
-        shareIntent.setType("text/plain");
-        shareIntent.putExtra(Intent.EXTRA_TEXT, url);
-        shareIntent.putExtra(Intent.EXTRA_SUBJECT, type + " from Real Desktop Browser");
-        startActivity(Intent.createChooser(shareIntent, "Share " + type));
-        Log.d(TAG, "🔄 Sharing link: " + url);
-    }
-    
-    // COPY LINK TEXT
-    private void copyLinkText(String url) {
-        // Inject JavaScript to get link text
-        String script = 
-            "javascript:(function() {" +
-            "  var links = document.getElementsByTagName('a');" +
-            "  for (var i = 0; i < links.length; i++) {" +
-            "    if (links[i].href === '" + url + "') {" +
-            "      return links[i].innerText || links[i].textContent;" +
-            "    }" +
-            "  }" +
-            "  return 'Link';" +
-            "})()";
-        
-        webView.evaluateJavascript(script, result -> {
-            String linkText = result != null ? result.replace("\"", "") : "Link";
-            copyToClipboard(linkText, "Link text copied");
-        });
-    }
-    
-    // PRINT PAGE
     private void printPage() {
+        Log.d(TAG, "🖨️ Print page requested");
+        
+        // Android's built-in print functionality
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.KITKAT) {
             android.print.PrintManager printManager = (android.print.PrintManager) getSystemService(Context.PRINT_SERVICE);
-            String jobName = "Real Desktop Browser - " + webView.getTitle();
+            
+            String jobName = "Real Desktop Browser - " + (webView.getTitle() != null ? webView.getTitle() : "Page");
             android.print.PrintDocumentAdapter printAdapter = webView.createPrintDocumentAdapter(jobName);
+            
             printManager.print(jobName, printAdapter, new android.print.PrintAttributes.Builder().build());
-            Log.d(TAG, "🖨️ Print job started: " + jobName);
         } else {
-            Toast.makeText(this, "Print feature requires Android 4.4+", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Print requires Android 4.4 or higher", Toast.LENGTH_SHORT).show();
         }
     }
     
-    // DOWNLOAD FILE
     private void downloadFile(String url, String filename) {
         try {
-            Log.d(TAG, "📥 Starting intelligent download: " + filename);
+            Log.d(TAG, "📥 Starting download - URL: " + url + ", Filename: " + filename);
             
-            // Create download request
+            android.app.DownloadManager downloadManager = (android.app.DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+            
             android.app.DownloadManager.Request request = new android.app.DownloadManager.Request(Uri.parse(url));
             request.setDescription("Downloaded by Real Desktop Browser");
             request.setTitle(filename);
-            request.allowScanningByMediaScanner();
-            request.setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
             
-            // Set download destination
+            // Set headers to mimic desktop browser
+            request.addRequestHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
+            
+            // Set download location
             request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename);
             
-            // Start download
-            android.app.DownloadManager downloadManager = (android.app.DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+            // Allow download over mobile and WiFi
+            request.setAllowedNetworkTypes(android.app.DownloadManager.Request.NETWORK_WIFI | android.app.DownloadManager.Request.NETWORK_MOBILE);
+            
+            // Show in downloads UI
+            request.setVisibleInDownloadsUi(true);
+            request.setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            
             long downloadId = downloadManager.enqueue(request);
             
             // Track download in our system
-            String filepath = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS) + "/" + filename;
-            DownloadManager.getInstance(this).addDownload(url, filename, filepath);
+            DownloadManager.getInstance(this).addDownload(filename, url, downloadId);
             
-            Toast.makeText(this, "📥 Downloading: " + filename, Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "📥 Download started: " + filename, Toast.LENGTH_SHORT).show();
+            
             Log.d(TAG, "✅ Download started - ID: " + downloadId + ", File: " + filename);
             
         } catch (Exception e) {
@@ -544,6 +472,8 @@ public class BrowserActivity extends AppCompatActivity {
             Toast.makeText(this, "Download failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
+    
+    private void setupCustomZoomControls() {
         // Custom zoom implementation
         webView.getSettings().setSupportZoom(true);
         webView.getSettings().setBuiltInZoomControls(true);
@@ -589,43 +519,15 @@ public class BrowserActivity extends AppCompatActivity {
             "  Object.defineProperty(screen, 'colorDepth', { value: 24, writable: false, configurable: false });" +
             "  Object.defineProperty(screen, 'pixelDepth', { value: 24, writable: false, configurable: false });" +
             "  " +
-            "  // === CRITICAL: DISABLE ALL TOUCH DETECTION ===" +
+            "  // === NAVIGATOR PROPERTIES OVERRIDE ===" +
+            "  Object.defineProperty(navigator, 'platform', { value: 'Win32', writable: false, configurable: false });" +
+            "  Object.defineProperty(navigator, 'oscpu', { value: 'Windows NT 10.0; Win64; x64', writable: false, configurable: false });" +
+            "  " +
+            "  // === CRITICAL TOUCH ELIMINATION ===" +
             "  Object.defineProperty(navigator, 'maxTouchPoints', { value: 0, writable: false, configurable: false });" +
             "  Object.defineProperty(navigator, 'msMaxTouchPoints', { value: 0, writable: false, configurable: false });" +
             "  " +
-            "  // Override touch capability detection" +
-            "  if ('ontouchstart' in window) {" +
-            "    delete window.ontouchstart;" +
-            "  }" +
-            "  if ('ontouchend' in window) {" +
-            "    delete window.ontouchend;" +
-            "  }" +
-            "  if ('ontouchmove' in window) {" +
-            "    delete window.ontouchmove;" +
-            "  }" +
-            "  " +
-            "  // Override DocumentTouch completely" +
-            "  if (typeof DocumentTouch !== 'undefined') {" +
-            "    window.DocumentTouch = undefined;" +
-            "  }" +
-            "  " +
-            "  // Override touch event creation" +
-            "  const originalCreateEvent = document.createEvent;" +
-            "  document.createEvent = function(eventType) {" +
-            "    if (eventType.toLowerCase().includes('touch')) {" +
-            "      throw new Error('TouchEvent not supported');" +
-            "    }" +
-            "    return originalCreateEvent.call(document, eventType);" +
-            "  };" +
-            "  " +
-            "  // === NAVIGATOR PROPERTIES - COMPLETE WINDOWS DESKTOP SIMULATION ===" +
-            "  Object.defineProperty(navigator, 'platform', { value: 'Win32', writable: false, configurable: false });" +
-            "  Object.defineProperty(navigator, 'oscpu', { value: 'Windows NT 10.0; Win64; x64', writable: false, configurable: false });" +
-            "  Object.defineProperty(navigator, 'hardwareConcurrency', { value: 8, writable: false, configurable: false });" +
-            "  Object.defineProperty(navigator, 'deviceMemory', { value: 8, writable: false, configurable: false });" +
-            "  Object.defineProperty(navigator, 'cpuClass', { value: 'x86', writable: false, configurable: false });" +
-            "  " +
-            "  // Override mobile-specific properties" +
+            "  // Remove ALL mobile-specific properties" +
             "  Object.defineProperty(navigator, 'standalone', { value: undefined, writable: false, configurable: false });" +
             "  Object.defineProperty(navigator, 'vibrate', { value: undefined, writable: false, configurable: false });" +
             "  " +
@@ -1416,26 +1318,34 @@ public class BrowserActivity extends AppCompatActivity {
                     
                     // Add current WebView as a tab if not already present
                     if (!currentUrlExists) {
-                        SessionManager.TabSession currentTabSession = sessionManager.createTabSession(webView, currentUrl, currentTitle);
+                        SessionManager.TabSession currentTabSession = new SessionManager.TabSession(
+                            currentUrl, 
+                            currentTitle != null ? currentTitle : "Current Tab", 
+                            null
+                        );
                         session.tabs.add(currentTabSession);
+                        android.util.Log.d(TAG, "Added current WebView to recent session: " + currentUrl);
                     }
                 }
             } else {
-                // Fallback: save at least the current WebView
+                // No tabs in list, save current WebView
                 String currentUrl = webView.getUrl();
                 String currentTitle = webView.getTitle();
                 if (currentUrl != null && !currentUrl.isEmpty()) {
-                    SessionManager.TabSession tabSession = sessionManager.createTabSession(webView, currentUrl, currentTitle);
-                    session.tabs.add(tabSession);
+                    SessionManager.TabSession currentTabSession = new SessionManager.TabSession(
+                        currentUrl, 
+                        currentTitle != null ? currentTitle : "Current Tab", 
+                        null
+                    );
+                    session.tabs.add(currentTabSession);
+                    android.util.Log.d(TAG, "No tabs in list, saved current WebView to recent session: " + currentUrl);
                 }
             }
             
-            if (!session.tabs.isEmpty()) {
-                sessionManager.saveRecentSession(session);
-                android.util.Log.d(TAG, "Recent session saved successfully with " + session.tabs.size() + " tabs");
-            } else {
-                android.util.Log.w(TAG, "No tabs to save for recent session");
-            }
+            session.timestamp = System.currentTimeMillis();
+            sessionManager.saveRecentSession(session);
+            android.util.Log.d(TAG, "Recent session saved successfully with " + session.tabs.size() + " tabs");
+            
         } catch (Exception e) {
             android.util.Log.e(TAG, "Error saving recent session", e);
         }
@@ -1448,205 +1358,121 @@ public class BrowserActivity extends AppCompatActivity {
         try {
             // Save all tabs from tabList
             if (tabList != null && !tabList.isEmpty()) {
-                android.util.Log.d(TAG, "Saving " + tabList.size() + " tabs to last session");
                 for (TabInfo tab : tabList) {
                     if (tab.url != null && !tab.url.isEmpty()) {
                         SessionManager.TabSession tabSession = new SessionManager.TabSession(
                             tab.url, 
                             tab.title != null ? tab.title : "Tab", 
-                            null // WebView state - will be enhanced
+                            null
                         );
                         session.tabs.add(tabSession);
                     }
                 }
-                
-                // Also save current WebView if active
-                String currentUrl = webView.getUrl();
-                String currentTitle = webView.getTitle();
-                if (currentUrl != null && !currentUrl.isEmpty()) {
-                    // Check if current URL is already in the list
-                    boolean currentUrlExists = false;
-                    for (SessionManager.TabSession existingTab : session.tabs) {
-                        if (currentUrl.equals(existingTab.url)) {
-                            currentUrlExists = true;
-                            break;
-                        }
-                    }
-                    
-                    // Add current WebView as a tab if not already present
-                    if (!currentUrlExists) {
-                        SessionManager.TabSession currentTabSession = sessionManager.createTabSession(webView, currentUrl, currentTitle);
-                        session.tabs.add(currentTabSession);
-                    }
-                }
-            } else {
-                // Fallback: save at least the current WebView
-                String currentUrl = webView.getUrl();
-                String currentTitle = webView.getTitle();
-                if (currentUrl != null && !currentUrl.isEmpty()) {
-                    SessionManager.TabSession tabSession = sessionManager.createTabSession(webView, currentUrl, currentTitle);
-                    session.tabs.add(tabSession);
-                }
             }
             
-            if (!session.tabs.isEmpty()) {
-                sessionManager.saveLastSession(session);
-                android.util.Log.d(TAG, "Last session saved successfully with " + session.tabs.size() + " tabs");
-            } else {
-                android.util.Log.w(TAG, "No tabs to save for last session");
+            // Always save current WebView
+            String currentUrl = webView.getUrl();
+            String currentTitle = webView.getTitle();
+            if (currentUrl != null && !currentUrl.isEmpty()) {
+                SessionManager.TabSession currentTabSession = new SessionManager.TabSession(
+                    currentUrl, 
+                    currentTitle != null ? currentTitle : "Current Tab", 
+                    null
+                );
+                session.tabs.add(currentTabSession);
             }
+            
+            session.timestamp = System.currentTimeMillis();
+            sessionManager.saveLastSession(session);
+            android.util.Log.d(TAG, "Last session saved successfully");
+            
         } catch (Exception e) {
             android.util.Log.e(TAG, "Error saving last session", e);
         }
     }
     
     private void restoreLastSession() {
-        android.util.Log.d(TAG, "Attempting to restore last session");
-        SessionManager.BrowserSession session = sessionManager.getLastSession();
-        if (session != null && !session.tabs.isEmpty()) {
-            android.util.Log.d(TAG, "Restoring last session with " + session.tabs.size() + " tabs");
-            
-            // Clear current tab list and reset counter
-            tabList.clear();
-            tabCount = 0;
-            
-            // Restore all tabs
-            for (int i = 0; i < session.tabs.size(); i++) {
-                SessionManager.TabSession tabSession = session.tabs.get(i);
-                boolean isActive = (i == 0); // Make first tab active
-                
-                TabInfo restoredTab = new TabInfo(
-                    tabSession.url, 
-                    tabSession.title != null ? tabSession.title : "Restored Tab",
-                    isActive
-                );
-                tabList.add(restoredTab);
+        android.util.Log.d(TAG, "Restoring last session");
+        try {
+            SessionManager.BrowserSession session = sessionManager.getLastSession();
+            if (session != null && !session.tabs.isEmpty()) {
+                restoreSession(session);
+            } else {
+                android.util.Log.d(TAG, "No last session found");
+                Toast.makeText(this, "No previous session found", Toast.LENGTH_SHORT).show();
             }
-            
-            tabCount = tabList.size();
-            updateTabCounter();
-            
-            // Load the first tab in WebView
-            if (!session.tabs.isEmpty()) {
-                SessionManager.TabSession firstTab = session.tabs.get(0);
-                if (firstTab.url != null && !firstTab.url.isEmpty()) {
-                    android.util.Log.d(TAG, "Loading first tab URL: " + firstTab.url);
-                    sessionManager.restoreWebView(webView, firstTab);
-                    Toast.makeText(this, "Last session restored with " + tabCount + " tabs", Toast.LENGTH_LONG).show();
-                } else {
-                    android.util.Log.w(TAG, "First tab has no URL, loading Google");
-                    loadNewUrl("https://www.google.com");
-                    Toast.makeText(this, "Session restored with default page", Toast.LENGTH_SHORT).show();
-                }
-            }
-        } else {
-            android.util.Log.e(TAG, "No last session data available");
-            loadNewUrl("https://www.google.com");
-            Toast.makeText(this, "No session to restore, loading default page", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            android.util.Log.e(TAG, "Error restoring last session", e);
+            Toast.makeText(this, "Error restoring session: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
     
     private void restoreRecentSession() {
-        android.util.Log.d(TAG, "Attempting to restore recent session");
-        SessionManager.BrowserSession session = sessionManager.getRecentSession();
-        if (session != null && !session.tabs.isEmpty()) {
-            android.util.Log.d(TAG, "Restoring recent session with " + session.tabs.size() + " tabs");
-            
-            // Clear current tab list and reset counter  
-            tabList.clear();
-            tabCount = 0;
-            
-            // Restore all tabs
-            for (int i = 0; i < session.tabs.size(); i++) {
-                SessionManager.TabSession tabSession = session.tabs.get(i);
-                boolean isActive = (i == 0); // Make first tab active
-                
-                TabInfo restoredTab = new TabInfo(
-                    tabSession.url, 
-                    tabSession.title != null ? tabSession.title : "Restored Tab",
-                    isActive
-                );
-                tabList.add(restoredTab);
-            }
-            
-            tabCount = tabList.size();
-            updateTabCounter();
-            
-            // Load the first tab in WebView
-            SessionManager.TabSession firstTab = session.tabs.get(0);
-            if (firstTab.url != null && !firstTab.url.isEmpty()) {
-                android.util.Log.d(TAG, "Loading first tab URL: " + firstTab.url);
-                sessionManager.restoreWebView(webView, firstTab);
-                Toast.makeText(this, "Recent session restored with " + tabCount + " tabs", Toast.LENGTH_LONG).show();
+        android.util.Log.d(TAG, "Restoring recent session");
+        try {
+            SessionManager.BrowserSession session = sessionManager.getRecentSession();
+            if (session != null && !session.tabs.isEmpty()) {
+                restoreSession(session);
             } else {
-                android.util.Log.w(TAG, "First tab has no URL, loading Google");
-                loadNewUrl("https://www.google.com");
-                Toast.makeText(this, "Session restored with default page", Toast.LENGTH_SHORT).show();
+                android.util.Log.d(TAG, "No recent session found");
+                Toast.makeText(this, "No recent session found", Toast.LENGTH_SHORT).show();
             }
-        } else {
-            android.util.Log.e(TAG, "No recent session data available");
-            loadNewUrl("https://www.google.com");
-            Toast.makeText(this, "No recent session found, loading default page", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            android.util.Log.e(TAG, "Error restoring recent session", e);
+            Toast.makeText(this, "Error restoring session: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
     
-    private void showZoomControls() {
-        if (zoomControlsContainer != null) {
-            zoomControlsContainer.setVisibility(View.VISIBLE);
-            zoomControlsContainer.animate().alpha(1.0f).setDuration(200);
-        }
-    }
-    
-    private void hideZoomControlsDelayed() {
-        if (zoomControlsContainer != null) {
-            zoomControlsContainer.postDelayed(() -> {
-                zoomControlsContainer.animate().alpha(0.0f).setDuration(200)
-                    .withEndAction(() -> zoomControlsContainer.setVisibility(View.GONE));
-            }, 3000); // Hide after 3 seconds
-        }
-    }
-    
-    @Override
-    protected void onResume() {
-        super.onResume();
-        // Check for 15-minute interstitial ad rule
-        if (adManager.canShowInterstitial()) {
-            adManager.showBrowsingInterstitial(this);
-        }
-    }
-    
-    private void showUrlStackDialog() {
-        if (urlStack.isEmpty()) {
-            Toast.makeText(this, "No URL history in current session", Toast.LENGTH_SHORT).show();
+    private void restoreSession(SessionManager.BrowserSession session) {
+        android.util.Log.d(TAG, "Restoring session with " + session.tabs.size() + " tabs");
+        
+        if (session.tabs.isEmpty()) {
+            Toast.makeText(this, "Session is empty", Toast.LENGTH_SHORT).show();
             return;
         }
         
-        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
-        builder.setTitle("URL Stack - Session History");
+        // Clear current tab list and URL stack
+        tabList.clear();
+        urlStack.clear();
         
-        String[] urls = urlStack.toArray(new String[0]);
-        builder.setItems(urls, (dialog, which) -> {
-            String selectedUrl = urls[which];
-            loadNewUrl(selectedUrl);
-            Toast.makeText(this, "Loading: " + selectedUrl, Toast.LENGTH_SHORT).show();
-        });
-        
-        builder.setNegativeButton("Close", null);
-        builder.show();
+        // Load first tab in WebView
+        SessionManager.TabSession firstTab = session.tabs.get(0);
+        if (firstTab.url != null && !firstTab.url.isEmpty()) {
+            loadNewUrl(firstTab.url);
+            
+            // Add all tabs to tab list
+            for (SessionManager.TabSession tabSession : session.tabs) {
+                if (tabSession.url != null && !tabSession.url.isEmpty()) {
+                    TabInfo tabInfo = new TabInfo(
+                        tabSession.url, 
+                        tabSession.title != null ? tabSession.title : "Restored Tab",
+                        tabSession == firstTab // First tab is active
+                    );
+                    tabList.add(tabInfo);
+                    urlStack.add(tabSession.url);
+                }
+            }
+            
+            // Update tab counter
+            tabCount = tabList.size();
+            updateTabCounter();
+            
+            android.util.Log.d(TAG, "Session restored successfully with " + tabList.size() + " tabs");
+            Toast.makeText(this, "Session restored with " + tabList.size() + " tabs", Toast.LENGTH_SHORT).show();
+        }
     }
     
-    private void createNewTab() {
-        // Add new tab to list
-        String newTabUrl = "https://www.google.com";
-        tabList.add(new TabInfo(newTabUrl, "Google", false));
-        tabCount = tabList.size();
-        
-        // Update counter
-        updateTabCounter();
-        
-        // Load URL in current WebView (simplified implementation)
-        loadNewUrl(newTabUrl);
-        Toast.makeText(this, "New tab created (" + tabCount + " tabs)", Toast.LENGTH_SHORT).show();
+    private void updateCurrentTabInfo(String url, String title) {
+        // Update current tab info in tab list
+        if (!tabList.isEmpty()) {
+            for (TabInfo tab : tabList) {
+                if (tab.isActive) {
+                    tab.url = url;
+                    tab.title = title != null ? title : "Tab";
+                    break;
+                }
+            }
+        }
     }
     
     private void updateTabCounter() {
@@ -1655,141 +1481,84 @@ public class BrowserActivity extends AppCompatActivity {
         }
     }
     
+    private void showZoomControls() {
+        if (zoomControlsContainer != null) {
+            zoomControlsContainer.setVisibility(View.VISIBLE);
+        }
+    }
+    
+    private void hideZoomControlsDelayed() {
+        if (zoomControlsContainer != null) {
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                if (zoomControlsContainer != null) {
+                    zoomControlsContainer.setVisibility(View.GONE);
+                }
+            }, 3000);
+        }
+    }
+    
+    private void expandAddressBar() {
+        // Implementation for address bar expansion
+        if (addressBar != null) {
+            addressBar.setSelection(addressBar.getText().length());
+        }
+    }
+    
+    private void collapseAddressBar() {
+        // Implementation for address bar collapse
+        // This could hide soft keyboard and adjust layout
+    }
+    
+    private void showUrlStackDialog() {
+        if (urlStack.isEmpty()) {
+            Toast.makeText(this, "No URL history available", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
+        builder.setTitle("URL Stack (" + urlStack.size() + " items)");
+        
+        String[] urlArray = urlStack.toArray(new String[0]);
+        builder.setItems(urlArray, (dialog, which) -> {
+            String selectedUrl = urlArray[which];
+            loadNewUrl(selectedUrl);
+        });
+        
+        builder.setNegativeButton("Cancel", null);
+        builder.show();
+    }
+    
     private void showTabSwitcher() {
         if (tabList.isEmpty()) {
             Toast.makeText(this, "No tabs available", Toast.LENGTH_SHORT).show();
             return;
         }
         
-        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
+        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
+        builder.setTitle("Tab Switcher (" + tabList.size() + " tabs)");
         
-        // Inflate tab switcher layout
-        android.view.LayoutInflater inflater = getLayoutInflater();
-        android.view.View dialogView = inflater.inflate(R.layout.dialog_tab_switcher, null);
-        builder.setView(dialogView);
-        
-        androidx.appcompat.app.AlertDialog dialog = builder.create();
-        
-        // Set transparent background for custom styling
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
-        }
-        
-        // Handle buttons
-        Button newTabButton = dialogView.findViewById(R.id.btn_new_tab_dialog);
-        Button closeButton = dialogView.findViewById(R.id.btn_close_tab_switcher);
-        
-        newTabButton.setOnClickListener(v -> {
-            dialog.dismiss();
-            createNewTab();
-        });
-        
-        closeButton.setOnClickListener(v -> dialog.dismiss());
-        
-        // Create tab list dynamically
-        androidx.recyclerview.widget.RecyclerView tabsRecyclerView = dialogView.findViewById(R.id.tabs_recycler_view);
-        
-        // Simple implementation - create LinearLayout with tab items
-        LinearLayout tabListContainer = new LinearLayout(this);
-        tabListContainer.setOrientation(LinearLayout.VERTICAL);
-        
+        String[] tabTitles = new String[tabList.size()];
         for (int i = 0; i < tabList.size(); i++) {
             TabInfo tab = tabList.get(i);
-            
-            TextView tabItem = new TextView(this);
-            String tabText = (i + 1) + ". " + (tab.title != null ? tab.title : "Tab") + 
-                           (tab.isActive ? " (Active)" : "");
-            tabItem.setText(tabText);
-            tabItem.setTextColor(getResources().getColor(android.R.color.white));
-            tabItem.setTextSize(16);
-            tabItem.setPadding(16, 12, 16, 12);
-            tabItem.setBackground(getResources().getDrawable(R.drawable.button_background));
-            tabItem.setClickable(true);
-            
-            // Set margin
-            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            );
-            params.setMargins(0, 8, 0, 8);
-            tabItem.setLayoutParams(params);
-            
-            // Handle tab click
-            final int tabIndex = i;
-            tabItem.setOnClickListener(v -> {
-                dialog.dismiss();
-                switchToTab(tabIndex);
-            });
-            
-            tabListContainer.addView(tabItem);
+            tabTitles[i] = (tab.isActive ? "► " : "") + (tab.title != null ? tab.title : "Tab") + 
+                          "\n" + (tab.url != null ? tab.url : "");
         }
         
-        // Replace RecyclerView with LinearLayout
-        ((LinearLayout) tabsRecyclerView.getParent()).removeView(tabsRecyclerView);
-        ((LinearLayout) dialogView).addView(tabListContainer, 1);
-        
-        dialog.show();
-    }
-    
-    private void switchToTab(int tabIndex) {
-        if (tabIndex >= 0 && tabIndex < tabList.size()) {
-            // Mark all tabs as inactive
-            for (TabInfo tab : tabList) {
-                tab.isActive = false;
-            }
-            
-            // Mark selected tab as active
-            TabInfo selectedTab = tabList.get(tabIndex);
-            selectedTab.isActive = true;
-            
-            // Load the tab's URL
+        builder.setItems(tabTitles, (dialog, which) -> {
+            TabInfo selectedTab = tabList.get(which);
             if (selectedTab.url != null && !selectedTab.url.isEmpty()) {
+                // Mark all tabs as inactive
+                for (TabInfo tab : tabList) {
+                    tab.isActive = false;
+                }
+                // Mark selected tab as active
+                selectedTab.isActive = true;
+                
                 loadNewUrl(selectedTab.url);
-                Toast.makeText(this, "Switched to: " + selectedTab.title, Toast.LENGTH_SHORT).show();
             }
-        }
-    }
-    
-    private void expandAddressBar() {
-        // Hide navigation buttons when address bar is focused
-        if (backButton != null) backButton.setVisibility(View.GONE);
-        if (forwardButton != null) forwardButton.setVisibility(View.GONE);
-        if (refreshButton != null) refreshButton.setVisibility(View.GONE);
-        if (homeButton != null) homeButton.setVisibility(View.GONE);
-        if (desktopModeButton != null) desktopModeButton.setVisibility(View.GONE);
+        });
         
-        // Animate address bar expansion
-        addressBar.animate()
-            .scaleX(1.02f)
-            .scaleY(1.02f)
-            .setDuration(200)
-            .start();
-    }
-    
-    private void collapseAddressBar() {
-        // Show navigation buttons when address bar loses focus
-        if (backButton != null) backButton.setVisibility(View.VISIBLE);
-        if (forwardButton != null) forwardButton.setVisibility(View.VISIBLE);
-        if (refreshButton != null) refreshButton.setVisibility(View.VISIBLE);
-        if (homeButton != null) homeButton.setVisibility(View.VISIBLE);
-        if (desktopModeButton != null) desktopModeButton.setVisibility(View.VISIBLE);
-        
-        // Animate address bar collapse
-        addressBar.animate()
-            .scaleX(1.0f)
-            .scaleY(1.0f)
-            .setDuration(200)
-            .start();
-    }
-    
-    private void updateCurrentTabInfo(String url, String title) {
-        // Update the active tab's information
-        for (TabInfo tab : tabList) {
-            if (tab.isActive) {
-                tab.url = url;
-                tab.title = title != null ? title : "Loading...";
-                break;
-            }
-        }
+        builder.setNegativeButton("Cancel", null);
+        builder.show();
     }
 }
