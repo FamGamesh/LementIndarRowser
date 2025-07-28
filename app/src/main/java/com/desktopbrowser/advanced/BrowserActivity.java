@@ -28,10 +28,13 @@ public class BrowserActivity extends AppCompatActivity {
     private WebView webView;
     private EditText addressBar;
     private ImageButton backButton, forwardButton, refreshButton, homeButton;
+    private ImageButton zoomInButton, zoomOutButton, desktopModeButton;
+    private TextView zoomLevel;
     private ProgressBar progressBar;
     private BookmarkManager bookmarkManager;
     private HistoryManager historyManager;
     private boolean isDesktopMode = true; // Default to desktop mode for advanced browsing
+    private float currentZoom = 65; // Start at 65% for desktop view
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -75,11 +78,18 @@ public class BrowserActivity extends AppCompatActivity {
         forwardButton = findViewById(R.id.btn_forward);
         refreshButton = findViewById(R.id.btn_refresh);
         homeButton = findViewById(R.id.btn_home);
+        zoomInButton = findViewById(R.id.btn_zoom_in);
+        zoomOutButton = findViewById(R.id.btn_zoom_out);
+        desktopModeButton = findViewById(R.id.btn_desktop_mode);
+        zoomLevel = findViewById(R.id.zoom_level);
         progressBar = findViewById(R.id.progress_bar);
         
         if (webView == null || addressBar == null) {
             throw new RuntimeException("Required views not found in layout");
         }
+        
+        // Update zoom level display
+        updateZoomLevel();
     }
     
     @SuppressLint("SetJavaScriptEnabled")
@@ -92,13 +102,21 @@ public class BrowserActivity extends AppCompatActivity {
         webSettings.setDatabaseEnabled(true);
         // Note: setAppCacheEnabled() was deprecated and removed in API 33+
         
-        // Desktop browsing optimizations
+        // Advanced Desktop Browser Settings
         webSettings.setLoadWithOverviewMode(true);
         webSettings.setUseWideViewPort(true);
         webSettings.setBuiltInZoomControls(true);
         webSettings.setDisplayZoomControls(false);
         webSettings.setSupportZoom(true);
         webSettings.setDefaultTextEncodingName("utf-8");
+        
+        // Desktop viewport configuration - Force desktop layout
+        webSettings.setLayoutAlgorithm(WebSettings.LayoutAlgorithm.NORMAL);
+        webSettings.setMinimumFontSize(8);  // Smaller fonts like desktop
+        webSettings.setMinimumLogicalFontSize(8);
+        webSettings.setDefaultFontSize(16);  // Desktop standard
+        webSettings.setDefaultFixedFontSize(13);
+        webSettings.setTextZoom(100);  // 100% zoom like desktop
         
         // Security and compatibility settings
         webSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
@@ -108,33 +126,105 @@ public class BrowserActivity extends AppCompatActivity {
         webSettings.setAllowFileAccess(false);
         webSettings.setAllowContentAccess(false);
         
+        // Media and advanced features
+        webSettings.setMediaPlaybackRequiresUserGesture(false);
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            webSettings.setSafeBrowsingEnabled(false);
+        }
+        
+        // Enable hardware acceleration for smooth performance
+        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        
         // Advanced desktop mode setup
         enableAdvancedDesktopMode();
         
-        webView.setWebViewClient(new AdvancedWebViewClient());
+        webView.setWebViewClient(new AdvancedDesktopWebViewClient());
         webView.setWebChromeClient(new AdvancedWebChromeClient());
         webView.setDownloadListener(new AdvancedDownloadListener());
+        
+        // Custom zoom and scroll setup
+        setupCustomZoomControls();
+        setupCustomScrolling();
     }
     
     private void enableAdvancedDesktopMode() {
         WebSettings webSettings = webView.getSettings();
         
-        // Set realistic desktop user agent
+        // Advanced Desktop User Agent with all desktop capabilities
         String desktopUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
         webSettings.setUserAgentString(desktopUserAgent);
         
-        // Desktop viewport settings
-        webSettings.setLayoutAlgorithm(WebSettings.LayoutAlgorithm.NORMAL);
-        // Note: setInitialScale() was deprecated and removed in API 33+
-        webSettings.setMinimumFontSize(1);
-        webSettings.setMinimumLogicalFontSize(1);
-        webSettings.setDefaultFontSize(16);
-        webSettings.setDefaultFixedFontSize(13);
+        // Force desktop viewport width (1366px is common desktop resolution)
+        String viewportMeta = "width=1366, initial-scale=0.6, maximum-scale=3.0, user-scalable=yes";
         
-        // Advanced compatibility flags
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            webSettings.setSafeBrowsingEnabled(false);
+        // Custom CSS and JS injection for true desktop experience
+        String desktopScript = 
+            "javascript:(function() {" +
+            "  var meta = document.createElement('meta');" +
+            "  meta.name = 'viewport';" +
+            "  meta.content = '" + viewportMeta + "';" +
+            "  var head = document.getElementsByTagName('head')[0];" +
+            "  if (head) { head.appendChild(meta); }" +
+            "  " +
+            "  // Override navigator properties for desktop simulation" +
+            "  Object.defineProperty(navigator, 'platform', { get: function() { return 'Win32'; } });" +
+            "  Object.defineProperty(navigator, 'userAgent', { get: function() { return '" + desktopUserAgent + "'; } });" +
+            "  Object.defineProperty(screen, 'width', { get: function() { return 1366; } });" +
+            "  Object.defineProperty(screen, 'height', { get: function() { return 768; } });" +
+            "  Object.defineProperty(screen, 'availWidth', { get: function() { return 1366; } });" +
+            "  Object.defineProperty(screen, 'availHeight', { get: function() { return 728; } });" +
+            "  " +
+            "  // Remove mobile-specific CSS classes and add desktop classes" +
+            "  document.documentElement.classList.remove('mobile', 'touch', 'android', 'phone');" +
+            "  document.documentElement.classList.add('desktop', 'no-touch', 'windows');" +
+            "  if (document.body) {" +
+            "    document.body.classList.remove('mobile', 'touch', 'android', 'phone');" +
+            "    document.body.classList.add('desktop', 'no-touch', 'windows');" +
+            "  }" +
+            "  " +
+            "  // Override touch events to simulate mouse" +
+            "  var style = document.createElement('style');" +
+            "  style.innerHTML = '* { -webkit-touch-callout: none; -webkit-user-select: text; } " +
+            "  body { cursor: default !important; } " +
+            "  a, button, input, select { cursor: pointer !important; } " +
+            "  ::-webkit-scrollbar { width: 12px; } " +
+            "  ::-webkit-scrollbar-track { background: #f1f1f1; } " +
+            "  ::-webkit-scrollbar-thumb { background: #888; border-radius: 6px; } " +
+            "  ::-webkit-scrollbar-thumb:hover { background: #555; }';" +
+            "  head.appendChild(style);" +
+            "})()";
+        
+        webView.loadUrl(desktopScript);
+    }
+    
+    private void setupCustomZoomControls() {
+        // Custom zoom implementation
+        webView.getSettings().setSupportZoom(true);
+        webView.getSettings().setBuiltInZoomControls(true);
+        webView.getSettings().setDisplayZoomControls(false);
+        
+        // Set zoom range for desktop-like experience
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+            webView.getSettings().setDefaultZoom(WebSettings.ZoomDensity.FAR); // Desktop-like zoom
         }
+    }
+    
+    private void setupCustomScrolling() {
+        // Enable smooth scrolling
+        webView.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
+        webView.setScrollbarFadingEnabled(false);
+        
+        // Custom scroll behavior for desktop-like experience
+        webView.setOnScrollChangeListener(new View.OnScrollChangeListener() {
+            @Override
+            public void onScrollChange(View v, int scrollX, int scrollY, int oldScrollX, int oldScrollY) {
+                // Implement smooth scrolling behavior
+                if (Math.abs(scrollY - oldScrollY) > 50) {
+                    // Large scroll detected, make it smoother
+                    webView.smoothScrollBy(0, (scrollY - oldScrollY) / 2);
+                }
+            }
+        });
     }
     
     private void injectAdvancedDesktopScript() {
@@ -196,6 +286,48 @@ public class BrowserActivity extends AppCompatActivity {
         webView.evaluateJavascript(script, null);
     }
     
+    private void enhancePageInteraction() {
+        // Advanced page interaction enhancements
+        String enhancementScript = 
+            "javascript:" +
+            "(function() {" +
+            "  'use strict';" +
+            "  " +
+            "  // Add desktop-style scrollbars" +
+            "  var style = document.createElement('style');" +
+            "  style.innerHTML = '" +
+            "    ::-webkit-scrollbar { width: 12px; height: 12px; }" +
+            "    ::-webkit-scrollbar-track { background: #f1f1f1; }" +
+            "    ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 6px; }" +
+            "    ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }" +
+            "    ::-webkit-scrollbar-corner { background: #f1f1f1; }" +
+            "    body { cursor: default !important; }" +
+            "    a, button, input[type=\"button\"], input[type=\"submit\"] { cursor: pointer !important; }" +
+            "    input[type=\"text\"], input[type=\"email\"], input[type=\"password\"], textarea { cursor: text !important; }" +
+            "  ';" +
+            "  document.head.appendChild(style);" +
+            "  " +
+            "  // Enhance mouse wheel scrolling" +
+            "  document.addEventListener('wheel', function(e) {" +
+            "    if (e.ctrlKey) {" +
+            "      e.preventDefault();" +
+            "      var delta = e.deltaY > 0 ? 0.9 : 1.1;" +
+            "      document.body.style.zoom = (parseFloat(document.body.style.zoom) || 1) * delta;" +
+            "    }" +
+            "  }, { passive: false });" +
+            "  " +
+            "  // Add right-click context menu simulation" +
+            "  document.addEventListener('contextmenu', function(e) {" +
+            "    e.preventDefault();" +
+            "    console.log('Desktop context menu triggered');" +
+            "  });" +
+            "  " +
+            "  console.log('✅ Page interaction enhanced for desktop');" +
+            "})();";
+        
+        webView.evaluateJavascript(enhancementScript, null);
+    }
+    
     private void setupNavigationControls() {
         backButton.setOnClickListener(v -> {
             if (webView.canGoBack()) {
@@ -215,6 +347,21 @@ public class BrowserActivity extends AppCompatActivity {
             finish(); // Return to main activity
         });
         
+        // Advanced Desktop Zoom Controls
+        zoomInButton.setOnClickListener(v -> {
+            currentZoom = Math.min(currentZoom + 10, 200); // Max 200%
+            applyZoom();
+        });
+        
+        zoomOutButton.setOnClickListener(v -> {
+            currentZoom = Math.max(currentZoom - 10, 25); // Min 25%
+            applyZoom();
+        });
+        
+        desktopModeButton.setOnClickListener(v -> {
+            toggleDesktopMode();
+        });
+        
         addressBar.setOnEditorActionListener((v, actionId, event) -> {
             String url = addressBar.getText().toString().trim();
             if (!url.isEmpty()) {
@@ -223,6 +370,51 @@ public class BrowserActivity extends AppCompatActivity {
             }
             return false;
         });
+    }
+    
+    private void applyZoom() {
+        // Apply zoom with desktop-optimized scaling
+        float zoomFactor = currentZoom / 100.0f;
+        webView.setScaleX(zoomFactor);
+        webView.setScaleY(zoomFactor);
+        
+        // Update zoom level display
+        updateZoomLevel();
+        
+        // Inject zoom adjustment script for better rendering
+        String zoomScript = 
+            "javascript:(function() {" +
+            "  document.body.style.zoom = '" + zoomFactor + "';" +
+            "  document.documentElement.style.setProperty('--browser-zoom', '" + zoomFactor + "');" +
+            "})()";
+        
+        webView.evaluateJavascript(zoomScript, null);
+    }
+    
+    private void updateZoomLevel() {
+        if (zoomLevel != null) {
+            zoomLevel.setText(Math.round(currentZoom) + "%");
+        }
+    }
+    
+    private void toggleDesktopMode() {
+        isDesktopMode = !isDesktopMode;
+        
+        if (isDesktopMode) {
+            // Enable advanced desktop mode
+            enableAdvancedDesktopMode();
+            desktopModeButton.setImageResource(R.drawable.ic_desktop_browser);
+            Toast.makeText(this, "🖥️ Advanced Desktop Mode Enabled", Toast.LENGTH_SHORT).show();
+        } else {
+            // Switch to mobile mode
+            WebSettings webSettings = webView.getSettings();
+            webSettings.setUserAgentString(null); // Default mobile user agent
+            desktopModeButton.setImageResource(R.drawable.ic_settings);
+            Toast.makeText(this, "📱 Mobile Mode Enabled", Toast.LENGTH_SHORT).show();
+        }
+        
+        // Reload current page to apply changes
+        webView.reload();
     }
     
     private String processUrl(String url) {
@@ -250,7 +442,7 @@ public class BrowserActivity extends AppCompatActivity {
         addressBar.setText(url);
     }
     
-    private class AdvancedWebViewClient extends WebViewClient {
+    private class AdvancedDesktopWebViewClient extends WebViewClient {
         @Override
         public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
             super.onPageStarted(view, url, favicon);
@@ -265,8 +457,33 @@ public class BrowserActivity extends AppCompatActivity {
             progressBar.setVisibility(View.GONE);
             updateNavigationButtons();
             
-            // Inject advanced desktop scripts
+            // Inject advanced desktop scripts for true desktop experience
             injectAdvancedDesktopScript();
+            
+            // Force desktop layout and viewport
+            String viewportScript = 
+                "javascript:(function() {" +
+                "  var existing = document.querySelector('meta[name=\"viewport\"]');" +
+                "  if (existing) existing.remove();" +
+                "  var meta = document.createElement('meta');" +
+                "  meta.name = 'viewport';" +
+                "  meta.content = 'width=1366, initial-scale=0.65, maximum-scale=3.0, user-scalable=yes';" +
+                "  document.head.appendChild(meta);" +
+                "  " +
+                "  // Force desktop responsive breakpoints" +
+                "  var style = document.createElement('style');" +
+                "  style.innerHTML = '" +
+                "    @media (max-width: 1365px) { body { min-width: 1366px !important; } }" +
+                "    * { -webkit-text-size-adjust: 100% !important; }" +
+                "    body { zoom: 1 !important; min-width: 1366px !important; }" +
+                "  ';" +
+                "  document.head.appendChild(style);" +
+                "})()";
+            
+            view.evaluateJavascript(viewportScript, null);
+            
+            // Add custom zoom and scroll enhancements
+            enhancePageInteraction();
             
             // Add to history
             String title = view.getTitle();
@@ -281,6 +498,13 @@ public class BrowserActivity extends AppCompatActivity {
             progressBar.setVisibility(View.GONE);
             Log.e(TAG, "WebView error: " + description);
             Toast.makeText(BrowserActivity.this, "Error loading page: " + description, Toast.LENGTH_SHORT).show();
+        }
+        
+        @Override
+        public boolean shouldOverrideUrlLoading(WebView view, String url) {
+            // Handle desktop-style link opening
+            view.loadUrl(url);
+            return true;
         }
     }
     

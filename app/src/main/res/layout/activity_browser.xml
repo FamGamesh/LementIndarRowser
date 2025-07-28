@@ -73,7 +73,60 @@
             android:layout_height="48dp"
             android:src="@drawable/ic_home"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Home" />
+            android:contentDescription="Home"
+            android:layout_marginEnd="8dp" />
+            
+        <!-- Desktop Browser Controls -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Zoom:"
+            android:textSize="12sp"
+            android:textColor="@color/text_primary"
+            android:layout_marginEnd="4dp"
+            android:gravity="center_vertical" />
+        
+        <ImageButton
+            android:id="@+id/btn_zoom_out"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@android:drawable/btn_dialog"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:text="−"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:contentDescription="Zoom Out"
+            android:layout_marginEnd="4dp" />
+            
+        <TextView
+            android:id="@+id/zoom_level"
+            android:layout_width="35dp"
+            android:layout_height="wrap_content"
+            android:text="65%"
+            android:textSize="11sp"
+            android:textColor="@color/text_primary"
+            android:gravity="center"
+            android:layout_marginEnd="4dp" />
+        
+        <ImageButton
+            android:id="@+id/btn_zoom_in"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@android:drawable/btn_dialog"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:text="+"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:contentDescription="Zoom In"
+            android:layout_marginEnd="8dp" />
+            
+        <ImageButton
+            android:id="@+id/btn_desktop_mode"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/ic_desktop_browser"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Toggle Desktop Mode" />
 
     </LinearLayout>
 
@@ -86,7 +139,7 @@
         style="@android:style/Widget.ProgressBar.Horizontal"
         android:progressTint="@color/accent_color" />
 
-    <!-- WebView Container -->
+    <!-- WebView Container with Desktop Features -->
     <FrameLayout
         android:id="@+id/webview_container"
         android:layout_width="match_parent"
@@ -96,7 +149,24 @@
         <WebView
             android:id="@+id/webview"
             android:layout_width="match_parent"
-            android:layout_height="match_parent" />
+            android:layout_height="match_parent"
+            android:scrollbars="horizontal|vertical"
+            android:fadeScrollbars="false"
+            android:scrollbarAlwaysDrawHorizontalTrack="true"
+            android:scrollbarAlwaysDrawVerticalTrack="true" />
+
+        <!-- Desktop Browser Info Overlay -->
+        <TextView
+            android:id="@+id/desktop_mode_indicator"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🖥️ Advanced Desktop Mode"
+            android:textSize="10sp"
+            android:textColor="@color/text_secondary"
+            android:background="#80000000"
+            android:padding="4dp"
+            android:layout_gravity="bottom|start"
+            android:visibility="visible" />
 
     </FrameLayout>
 
