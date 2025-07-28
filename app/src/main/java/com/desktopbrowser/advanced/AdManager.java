@@ -39,6 +39,12 @@ public class AdManager {
     private long lastInterstitialTime = 0;
     private static final long INTERSTITIAL_COOLDOWN = 15 * 60 * 1000; // 15 minutes
     
+    // Add flags to prevent multiple ad operations
+    private boolean isShowingInterstitial = false;
+    private boolean isShowingRewarded = false;
+    private static final long AD_CLICK_DEBOUNCE = 2000; // 2 seconds debounce
+    private long lastAdClickTime = 0;
+    
     private AdManager(Context context) {
         this.context = context.getApplicationContext();
         initializeAds();
@@ -109,35 +115,68 @@ public class AdManager {
     }
     
     public void showInterstitialAd(Activity activity, Runnable onAdClosed) {
+        // Prevent multiple ad operations and add debouncing
+        long currentTime = System.currentTimeMillis();
+        if (isShowingInterstitial || (currentTime - lastAdClickTime) < AD_CLICK_DEBOUNCE) {
+            Log.d(TAG, "Ad operation already in progress or too recent, skipping");
+            if (onAdClosed != null) {
+                try {
+                    onAdClosed.run();
+                } catch (Exception e) {
+                    Log.e(TAG, "Error in debounced callback", e);
+                }
+            }
+            return;
+        }
+        
+        lastAdClickTime = currentTime;
+        
         if (interstitialAd != null) {
+            isShowingInterstitial = true;
+            
             interstitialAd.setFullScreenContentCallback(new FullScreenContentCallback() {
                 @Override
                 public void onAdDismissedFullScreenContent() {
                     Log.d(TAG, "Interstitial ad dismissed");
+                    isShowingInterstitial = false;
                     interstitialAd = null;
-                    loadInterstitialAd(); // Load next ad
                     
-                    try {
-                        if (onAdClosed != null) {
-                            onAdClosed.run();
+                    // Use Handler to ensure UI thread execution
+                    android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+                    mainHandler.post(() -> {
+                        try {
+                            loadInterstitialAd(); // Load next ad
+                            if (onAdClosed != null) {
+                                onAdClosed.run();
+                            }
+                        } catch (Exception e) {
+                            Log.e(TAG, "Error in interstitial dismiss callback", e);
                         }
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error in interstitial callback", e);
-                    }
+                    });
                 }
                 
                 @Override
                 public void onAdFailedToShowFullScreenContent(AdError adError) {
                     Log.e(TAG, "Interstitial ad failed to show: " + adError.getMessage());
+                    isShowingInterstitial = false;
                     interstitialAd = null;
                     
-                    try {
-                        if (onAdClosed != null) {
-                            onAdClosed.run();
+                    // Use Handler to ensure UI thread execution
+                    android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+                    mainHandler.post(() -> {
+                        try {
+                            if (onAdClosed != null) {
+                                onAdClosed.run();
+                            }
+                        } catch (Exception e) {
+                            Log.e(TAG, "Error in interstitial failure callback", e);
                         }
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error in interstitial failure callback", e);
-                    }
+                    });
+                }
+                
+                @Override
+                public void onAdShowedFullScreenContent() {
+                    Log.d(TAG, "Interstitial ad showed");
                 }
             });
             
@@ -146,6 +185,7 @@ public class AdManager {
                 lastInterstitialTime = System.currentTimeMillis();
             } catch (Exception e) {
                 Log.e(TAG, "Error showing interstitial ad", e);
+                isShowingInterstitial = false;
                 if (onAdClosed != null) {
                     onAdClosed.run();
                 }
@@ -194,55 +234,92 @@ public class AdManager {
     }
     
     public void showRewardedAd(Activity activity, RewardedAdCallback callback) {
+        // Prevent multiple rewarded ad operations
+        if (isShowingRewarded) {
+            Log.d(TAG, "Rewarded ad already showing, skipping");
+            try {
+                callback.onAdFailedToShow();
+            } catch (Exception e) {
+                Log.e(TAG, "Error in rewarded ad skip callback", e);
+            }
+            return;
+        }
+        
         if (rewardedAd != null) {
+            isShowingRewarded = true;
             final boolean[] rewardEarned = {false};
             
             rewardedAd.setFullScreenContentCallback(new FullScreenContentCallback() {
                 @Override
                 public void onAdDismissedFullScreenContent() {
                     Log.d(TAG, "Rewarded ad dismissed");
+                    isShowingRewarded = false;
                     rewardedAd = null;
-                    loadRewardedAd(); // Load next ad
                     
-                    try {
-                        callback.onAdClosed(rewardEarned[0]);
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error in reward callback", e);
-                    }
+                    // Use Handler to ensure UI thread execution
+                    android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+                    mainHandler.post(() -> {
+                        try {
+                            loadRewardedAd(); // Load next ad
+                            callback.onAdClosed(rewardEarned[0]);
+                        } catch (Exception e) {
+                            Log.e(TAG, "Error in reward dismiss callback", e);
+                        }
+                    });
                 }
                 
                 @Override
                 public void onAdFailedToShowFullScreenContent(AdError adError) {
                     Log.e(TAG, "Rewarded ad failed to show: " + adError.getMessage());
+                    isShowingRewarded = false;
                     rewardedAd = null;
                     
-                    try {
-                        callback.onAdFailedToShow();
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error in failure callback", e);
-                    }
+                    // Use Handler to ensure UI thread execution
+                    android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+                    mainHandler.post(() -> {
+                        try {
+                            callback.onAdFailedToShow();
+                        } catch (Exception e) {
+                            Log.e(TAG, "Error in reward failure callback", e);
+                        }
+                    });
+                }
+                
+                @Override
+                public void onAdShowedFullScreenContent() {
+                    Log.d(TAG, "Rewarded ad showed");
                 }
             });
             
-            rewardedAd.show(activity, new OnUserEarnedRewardListener() {
-                @Override
-                public void onUserEarnedReward(RewardItem rewardItem) {
-                    Log.d(TAG, "User earned reward: " + rewardItem.getType() + " - " + rewardItem.getAmount());
-                    rewardEarned[0] = true;
-                    
-                    try {
-                        callback.onUserEarnedReward();
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error in reward earned callback", e);
+            try {
+                rewardedAd.show(activity, new OnUserEarnedRewardListener() {
+                    @Override
+                    public void onUserEarnedReward(RewardItem rewardItem) {
+                        Log.d(TAG, "User earned reward: " + rewardItem.getType() + " - " + rewardItem.getAmount());
+                        rewardEarned[0] = true;
+                        
+                        // Use Handler to ensure UI thread execution
+                        android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+                        mainHandler.post(() -> {
+                            try {
+                                callback.onUserEarnedReward();
+                            } catch (Exception e) {
+                                Log.e(TAG, "Error in reward earned callback", e);
+                            }
+                        });
                     }
-                }
-            });
+                });
+            } catch (Exception e) {
+                Log.e(TAG, "Error showing rewarded ad", e);
+                isShowingRewarded = false;
+                callback.onAdFailedToShow();
+            }
         } else {
             Log.d(TAG, "Rewarded ad not ready");
             try {
                 callback.onAdFailedToShow();
             } catch (Exception e) {
-                Log.e(TAG, "Error in not ready callback", e);
+                Log.e(TAG, "Error in rewarded not ready callback", e);
             }
         }
     }

@@ -67,6 +67,15 @@ public class BrowserActivity extends AppCompatActivity {
         private View tabCounterView;
         private TextView tabCountText;
         private java.util.List<TabInfo> tabList;
+        
+        // Prevent multiple operations
+        private boolean isRefreshing = false;
+        private long lastRefreshTime = 0;
+        private static final long REFRESH_DEBOUNCE = 2000; // 2 seconds debounce
+        
+        private boolean isNavigating = false;
+        private long lastNavigationTime = 0;
+        private static final long NAVIGATION_DEBOUNCE = 1000; // 1 second debounce
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -620,18 +629,52 @@ public class BrowserActivity extends AppCompatActivity {
     
     private void setupNavigationControls() {
         backButton.setOnClickListener(v -> {
+            // Add debouncing for navigation
+            long currentTime = System.currentTimeMillis();
+            if (isNavigating || (currentTime - lastNavigationTime) < NAVIGATION_DEBOUNCE) {
+                return;
+            }
+            
             if (webView.canGoBack()) {
+                lastNavigationTime = currentTime;
+                isNavigating = true;
                 webView.goBack();
             }
         });
         
         forwardButton.setOnClickListener(v -> {
+            // Add debouncing for navigation
+            long currentTime = System.currentTimeMillis();
+            if (isNavigating || (currentTime - lastNavigationTime) < NAVIGATION_DEBOUNCE) {
+                return;
+            }
+            
             if (webView.canGoForward()) {
+                lastNavigationTime = currentTime;
+                isNavigating = true;
                 webView.goForward();
             }
         });
         
-        refreshButton.setOnClickListener(v -> webView.reload());
+        refreshButton.setOnClickListener(v -> {
+            // Add debouncing to prevent multiple concurrent refreshes
+            long currentTime = System.currentTimeMillis();
+            if (isRefreshing || (currentTime - lastRefreshTime) < REFRESH_DEBOUNCE) {
+                Log.d(TAG, "Refresh already in progress or too recent, ignoring");
+                return;
+            }
+            
+            lastRefreshTime = currentTime;
+            isRefreshing = true;
+            
+            try {
+                webView.reload();
+                Toast.makeText(BrowserActivity.this, "Refreshing page...", Toast.LENGTH_SHORT).show();
+            } catch (Exception e) {
+                Log.e(TAG, "Error refreshing page", e);
+                isRefreshing = false;
+            }
+        });
         
         homeButton.setOnClickListener(v -> {
             // Save current session as "recent session" before going home
@@ -796,6 +839,10 @@ public class BrowserActivity extends AppCompatActivity {
             progressBar.setVisibility(View.GONE);
             updateNavigationButtons();
             
+            // Reset refresh flag
+            isRefreshing = false;
+            isNavigating = false;
+            
             // Update current tab info
             String title = view.getTitle();
             updateCurrentTabInfo(url, title);
@@ -838,6 +885,11 @@ public class BrowserActivity extends AppCompatActivity {
         public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
             super.onReceivedError(view, errorCode, description, failingUrl);
             progressBar.setVisibility(View.GONE);
+            
+            // Reset refresh flag on error
+            isRefreshing = false;
+            isNavigating = false;
+            
             Log.e(TAG, "WebView error: " + description);
             Toast.makeText(BrowserActivity.this, "Error loading page: " + description, Toast.LENGTH_SHORT).show();
         }
