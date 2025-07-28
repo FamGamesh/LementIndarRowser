@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Element Finder Browser</string>
+    <string name="app_subtitle">Intelligent Web Element Selector Tool</string>
+    <string name="app_icon_description">Element Finder Browser Icon</string>
+    <string name="search_hint">Enter URL or search term</string>
+    <string name="search_button_text">Browse</string>
+    <string name="features_description">• Long press any element (2 seconds) to view its selector\n• Record macros to capture element selectors\n• Toggle desktop mode for better web experience\n• Intelligent CSS and XPath selector generation</string>
+</resources>
