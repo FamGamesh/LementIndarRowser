@@ -122,8 +122,18 @@ public class SessionManager {
         long currentTime = System.currentTimeMillis();
         boolean isActive = currentTime < expiryTime;
         
-        // Debug logging
-        android.util.Log.d("SessionManager", "Premium check - Current: " + currentTime + ", Expiry: " + expiryTime + ", Active: " + isActive);
+        // Debug logging with readable dates
+        if (expiryTime > 0) {
+            java.util.Date expiryDate = new java.util.Date(expiryTime);
+            java.util.Date currentDate = new java.util.Date(currentTime);
+            android.util.Log.d("SessionManager", "Premium check:");
+            android.util.Log.d("SessionManager", "Current time: " + currentDate);
+            android.util.Log.d("SessionManager", "Expiry time: " + expiryDate);
+            android.util.Log.d("SessionManager", "Is Active: " + isActive);
+            android.util.Log.d("SessionManager", "Remaining: " + (expiryTime - currentTime) / 1000 + " seconds");
+        } else {
+            android.util.Log.d("SessionManager", "No premium expiry time set (never activated)");
+        }
         
         return isActive;
     }
@@ -131,11 +141,22 @@ public class SessionManager {
     public void grantPremiumAccess(long durationMillis) {
         long currentTime = System.currentTimeMillis();
         long expiryTime = currentTime + durationMillis;
-        setPremiumExpiry(expiryTime);
         
-        // Debug logging
-        android.util.Log.d("SessionManager", "Premium granted - Duration: " + durationMillis + "ms (" + (durationMillis/1000/60) + " minutes)");
-        android.util.Log.d("SessionManager", "Premium expires at: " + new java.util.Date(expiryTime));
+        // Store both the expiry time and duration for debugging
+        prefs.edit()
+            .putLong(KEY_PREMIUM_EXPIRY, expiryTime)
+            .putLong("premium_duration", durationMillis) // For debugging
+            .putLong("premium_granted_at", currentTime) // For debugging
+            .apply();
+        
+        // Debug logging with readable dates
+        java.util.Date expiryDate = new java.util.Date(expiryTime);
+        java.util.Date grantedDate = new java.util.Date(currentTime);
+        android.util.Log.d("SessionManager", "Premium granted:");
+        android.util.Log.d("SessionManager", "Granted at: " + grantedDate);
+        android.util.Log.d("SessionManager", "Duration: " + (durationMillis/1000/60) + " minutes");
+        android.util.Log.d("SessionManager", "Expires at: " + expiryDate);
+        android.util.Log.d("SessionManager", "Expiry timestamp: " + expiryTime);
     }
     
     public long getRemainingPremiumTime() {
@@ -150,10 +171,26 @@ public class SessionManager {
             return "Premium expired";
         }
         
-        long minutes = remainingMs / (1000 * 60);
+        long hours = remainingMs / (1000 * 60 * 60);
+        long minutes = (remainingMs % (1000 * 60 * 60)) / (1000 * 60);
         long seconds = (remainingMs % (1000 * 60)) / 1000;
         
-        return String.format("%02d:%02d remaining", minutes, seconds);
+        if (hours > 0) {
+            return String.format("%02d:%02d:%02d remaining", hours, minutes, seconds);
+        } else {
+            return String.format("%02d:%02d remaining", minutes, seconds);
+        }
+    }
+    
+    public void checkAndShowPremiumStatus(android.content.Context context) {
+        if (isPremiumActive()) {
+            String remaining = getRemainingPremiumTimeFormatted();
+            android.widget.Toast.makeText(context, "✨ Premium Active: " + remaining, 
+                android.widget.Toast.LENGTH_LONG).show();
+            android.util.Log.d("SessionManager", "Premium status shown to user: " + remaining);
+        } else {
+            android.util.Log.d("SessionManager", "Premium not active, no status shown");
+        }
     }
     
     // Helper method to create tab session from WebView

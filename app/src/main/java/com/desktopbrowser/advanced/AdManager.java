@@ -137,46 +137,29 @@ public class AdManager {
             interstitialAd.setFullScreenContentCallback(new FullScreenContentCallback() {
                 @Override
                 public void onAdDismissedFullScreenContent() {
-                    Log.d(TAG, "Interstitial ad dismissed");
-                    isShowingInterstitial = false;
-                    interstitialAd = null;
-                    
-                    // Use Handler to ensure UI thread execution
-                    android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
-                    mainHandler.post(() -> {
-                        try {
-                            loadInterstitialAd(); // Load next ad
-                            if (onAdClosed != null) {
-                                onAdClosed.run();
-                            }
-                        } catch (Exception e) {
-                            Log.e(TAG, "Error in interstitial dismiss callback", e);
-                        }
-                    });
+                    Log.d(TAG, "Interstitial ad dismissed by user");
+                    handleInterstitialAdClosed(onAdClosed);
                 }
                 
                 @Override
                 public void onAdFailedToShowFullScreenContent(AdError adError) {
                     Log.e(TAG, "Interstitial ad failed to show: " + adError.getMessage());
-                    isShowingInterstitial = false;
-                    interstitialAd = null;
-                    
-                    // Use Handler to ensure UI thread execution
-                    android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
-                    mainHandler.post(() -> {
-                        try {
-                            if (onAdClosed != null) {
-                                onAdClosed.run();
-                            }
-                        } catch (Exception e) {
-                            Log.e(TAG, "Error in interstitial failure callback", e);
-                        }
-                    });
+                    handleInterstitialAdClosed(onAdClosed);
                 }
                 
                 @Override
                 public void onAdShowedFullScreenContent() {
-                    Log.d(TAG, "Interstitial ad showed");
+                    Log.d(TAG, "Interstitial ad showed successfully");
+                }
+                
+                @Override
+                public void onAdClicked() {
+                    Log.d(TAG, "Interstitial ad clicked");
+                }
+                
+                @Override
+                public void onAdImpression() {
+                    Log.d(TAG, "Interstitial ad impression recorded");
                 }
             });
             
@@ -185,21 +168,37 @@ public class AdManager {
                 lastInterstitialTime = System.currentTimeMillis();
             } catch (Exception e) {
                 Log.e(TAG, "Error showing interstitial ad", e);
-                isShowingInterstitial = false;
-                if (onAdClosed != null) {
-                    onAdClosed.run();
-                }
+                handleInterstitialAdClosed(onAdClosed);
             }
         } else {
             Log.d(TAG, "Interstitial ad not ready, proceeding without ad");
+            if (onAdClosed != null) {
+                try {
+                    onAdClosed.run();
+                } catch (Exception e) {
+                    Log.e(TAG, "Error in interstitial not ready callback", e);
+                }
+            }
+        }
+    }
+    
+    private void handleInterstitialAdClosed(Runnable onAdClosed) {
+        // Reset flags and clean up
+        isShowingInterstitial = false;
+        interstitialAd = null;
+        
+        // Use handler with delay to ensure proper cleanup
+        android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+        mainHandler.postDelayed(() -> {
             try {
+                loadInterstitialAd(); // Load next ad
                 if (onAdClosed != null) {
                     onAdClosed.run();
                 }
             } catch (Exception e) {
-                Log.e(TAG, "Error in interstitial not ready callback", e);
+                Log.e(TAG, "Error in interstitial cleanup callback", e);
             }
-        }
+        }, 500); // 500ms delay to ensure proper ad dismissal
     }
     
     // Check if enough time has passed for next interstitial ad (15 minutes rule)
@@ -339,6 +338,25 @@ public class AdManager {
     
     public void showRecentSessionAd(Activity activity, Runnable onComplete) {
         showInterstitialAd(activity, onComplete);
+    }
+    
+    public void forceCleanupAds() {
+        // Force cleanup any stuck ads
+        isShowingInterstitial = false;
+        isShowingRewarded = false;
+        
+        if (interstitialAd != null) {
+            interstitialAd = null;
+        }
+        if (rewardedAd != null) {
+            rewardedAd = null;
+        }
+        
+        // Reload ads
+        loadInterstitialAd();
+        loadRewardedAd();
+        
+        Log.d(TAG, "Force cleanup completed - all ad states reset");
     }
     
     public void showBrowsingInterstitial(Activity activity) {

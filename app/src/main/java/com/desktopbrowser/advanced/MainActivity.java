@@ -43,6 +43,12 @@ public class MainActivity extends AppCompatActivity {
             setupSessionButtons();
             setupAds();
             
+            // Check and show premium status on startup
+            android.os.Handler startupHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+            startupHandler.postDelayed(() -> {
+                sessionManager.checkAndShowPremiumStatus(this);
+            }, 1000); // Show after 1 second delay
+            
         } catch (Exception e) {
             Toast.makeText(this, "Error initializing app: " + e.getMessage(), Toast.LENGTH_LONG).show();
             e.printStackTrace();
@@ -218,11 +224,19 @@ public class MainActivity extends AppCompatActivity {
             
             String url = processInput(input);
             
-            // Show interstitial ad first, then show mandatory rewarded ad
-            adManager.showSearchAd(this, () -> {
-                showMandatoryRewardedAd("Watch this ad to unlock premium desktop browsing experience for 1 hour!", 
-                    () -> openUrl(url));
-            });
+            // Check if premium is still active
+            if (sessionManager.isPremiumActive()) {
+                // User has active premium, browse directly
+                String remaining = sessionManager.getRemainingPremiumTimeFormatted();
+                Toast.makeText(this, "✨ Premium Active: " + remaining, Toast.LENGTH_SHORT).show();
+                openUrl(url);
+            } else {
+                // Show interstitial ad first, then show mandatory rewarded ad
+                adManager.showSearchAd(this, () -> {
+                    showMandatoryRewardedAd("Watch this ad to unlock premium desktop browsing experience for 1 hour!", 
+                        () -> openUrl(url));
+                });
+            }
             
         } catch (Exception e) {
             Toast.makeText(this, "Error opening browser: " + e.getMessage(), Toast.LENGTH_LONG).show();
