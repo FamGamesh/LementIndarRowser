@@ -89,6 +89,8 @@ public class WebViewActivity extends AppCompatActivity {
                 getSupportActionBar().setDisplayHomeAsUpEnabled(true);
                 getSupportActionBar().setTitle("Element Finder Browser");
             }
+            // Ensure menu items are properly displayed
+            invalidateOptionsMenu();
         } catch (Exception e) {
             Log.e(TAG, "Error setting up toolbar", e);
         }
@@ -175,13 +177,25 @@ public class WebViewActivity extends AppCompatActivity {
             }
         });
         
-        // Add overlay to the main layout
-        android.widget.FrameLayout mainLayout = findViewById(android.R.id.content);
-        android.widget.FrameLayout.LayoutParams params = new android.widget.FrameLayout.LayoutParams(
-            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-            android.widget.FrameLayout.LayoutParams.MATCH_PARENT
-        );
-        mainLayout.addView(cropOverlay, params);
+        // Add overlay to the WebView container to avoid interfering with toolbar
+        android.widget.FrameLayout webViewContainer = findViewById(R.id.webview_container);
+        if (webViewContainer != null) {
+            android.widget.FrameLayout.LayoutParams params = new android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT
+            );
+            webViewContainer.addView(cropOverlay, params);
+        } else {
+            // Fallback: add to the main layout but with proper margins to avoid toolbar overlap
+            android.widget.FrameLayout mainLayout = findViewById(android.R.id.content);
+            android.widget.FrameLayout.LayoutParams params = new android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT
+            );
+            // Add top margin to avoid covering toolbar
+            params.topMargin = 200; // Approximate toolbar height in pixels
+            mainLayout.addView(cropOverlay, params);
+        }
     }
     
     private void finalizeCropSelection() {
@@ -238,7 +252,7 @@ public class WebViewActivity extends AppCompatActivity {
             webView.evaluateJavascript(jsCode, result -> {
                 Log.d(TAG, "Element selection result: " + result);
             });
-        }, 500);
+        }, 1000); // Increased delay from 500ms to 1000ms
     }
     
     @SuppressLint("SetJavaScriptEnabled")
@@ -300,18 +314,18 @@ public class WebViewActivity extends AppCompatActivity {
                     // Inject stealth and selector scripts with multiple attempts
                     injectStealthScript();
                     
-                    // Wait a bit then inject selector scripts
+                    // Wait a bit then inject selector scripts with increased delay
                     new Handler(Looper.getMainLooper()).postDelayed(() -> {
                         injectSelectorScript();
                         
-                        // Verify injection after another delay
+                        // Verify injection after another delay with more time
                         new Handler(Looper.getMainLooper()).postDelayed(() -> {
                             verifyScriptInjection();
                             runOnUiThread(() -> {
-                                Toast.makeText(WebViewActivity.this, "Page loaded. Long press elements to view selectors!", Toast.LENGTH_LONG).show();
+                                Toast.makeText(WebViewActivity.this, "Page loaded. Use Find Selector or Record Macro!", Toast.LENGTH_LONG).show();
                             });
-                        }, 800);
-                    }, 1200);
+                        }, 1200); // Increased from 800ms to 1200ms
+                    }, 1500); // Increased from 1200ms to 1500ms
                 }
                 
                 @Override
@@ -403,7 +417,7 @@ public class WebViewActivity extends AppCompatActivity {
             webView.evaluateJavascript(jsCode, result -> {
                 Log.d(TAG, "Click recording result: " + result);
             });
-        }, 300);
+        }, 800); // Increased delay from 300ms to 800ms
     }
     
     @SuppressLint("ClickableViewAccessibility")
@@ -644,15 +658,30 @@ public class WebViewActivity extends AppCompatActivity {
     
     private void verifyScriptInjection() {
         webView.evaluateJavascript(
-            "(typeof window.handleLongPress === 'function' && typeof window.recordClick === 'function')", 
+            "(typeof window.handleElementSelection === 'function' && typeof window.recordClickAtPosition === 'function')", 
             result -> {
                 Log.d(TAG, "Script verification result: " + result);
                 if (!"true".equals(result)) {
                     Log.w(TAG, "Scripts not properly loaded, re-injecting...");
-                    // Re-inject if verification fails
+                    // Re-inject if verification fails with longer delay
                     new Handler(Looper.getMainLooper()).postDelayed(() -> {
                         injectSelectorScript();
-                    }, 300);
+                        // Verify again after re-injection
+                        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                            webView.evaluateJavascript(
+                                "(typeof window.handleElementSelection === 'function' && typeof window.recordClickAtPosition === 'function')", 
+                                retryResult -> {
+                                    if (!"true".equals(retryResult)) {
+                                        Log.e(TAG, "Script injection failed after retry");
+                                        runOnUiThread(() -> Toast.makeText(WebViewActivity.this, 
+                                            "Warning: Some functions may not be available", Toast.LENGTH_LONG).show());
+                                    } else {
+                                        Log.d(TAG, "Scripts verified successfully on retry");
+                                    }
+                                }
+                            );
+                        }, 800);
+                    }, 600); // Increased from 300ms to 600ms
                 } else {
                     Log.d(TAG, "All scripts verified successfully");
                 }
