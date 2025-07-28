@@ -17,6 +17,7 @@ import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
 import android.webkit.JavascriptInterface;
+import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -114,7 +115,6 @@ public class WebViewActivity extends AppCompatActivity {
             webSettings.setJavaScriptEnabled(true);
             webSettings.setDomStorageEnabled(true);
             webSettings.setDatabaseEnabled(true);
-            webSettings.setAppCacheEnabled(true);
             
             // Advanced stealth settings
             webSettings.setLoadWithOverviewMode(true);
@@ -178,18 +178,6 @@ public class WebViewActivity extends AppCompatActivity {
                     super.onReceivedError(view, errorCode, description, failingUrl);
                     Log.e(TAG, "WebView error: " + description + " for URL: " + failingUrl);
                     Toast.makeText(WebViewActivity.this, "Error loading page: " + description, Toast.LENGTH_SHORT).show();
-                }
-                
-                @Override
-                public WebResourceResponse shouldInterceptRequest(WebView view, android.webkit.WebResourceRequest request) {
-                    // Add stealth headers to all requests
-                    return addStealthHeaders(request);
-                }
-                
-                @Override
-                public boolean shouldOverrideUrlLoading(WebView view, android.webkit.WebResourceRequest request) {
-                    // Handle URL loading with stealth features
-                    return false; // Let WebView handle the URL
                 }
             });
             
@@ -480,37 +468,7 @@ public class WebViewActivity extends AppCompatActivity {
         );
     }
     
-    private WebResourceResponse addStealthHeaders(android.webkit.WebResourceRequest request) {
-        try {
-            // Add stealth headers to requests
-            java.util.Map<String, String> headers = request.getRequestHeaders();
-            
-            // Add realistic headers
-            if (!headers.containsKey("Accept")) {
-                headers.put("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8");
-            }
-            if (!headers.containsKey("Accept-Language")) {
-                headers.put("Accept-Language", "en-US,en;q=0.5");
-            }
-            if (!headers.containsKey("Accept-Encoding")) {
-                headers.put("Accept-Encoding", "gzip, deflate, br");
-            }
-            if (!headers.containsKey("DNT")) {
-                headers.put("DNT", "1");
-            }
-            if (!headers.containsKey("Connection")) {
-                headers.put("Connection", "keep-alive");
-            }
-            if (!headers.containsKey("Upgrade-Insecure-Requests")) {
-                headers.put("Upgrade-Insecure-Requests", "1");
-            }
-            
-        } catch (Exception e) {
-            Log.e(TAG, "Error adding stealth headers", e);
-        }
-        return null; // Let the WebView handle the request normally
-    }
-    
+
     private String getSelectorScript() {
         return "javascript:" +
             // Force script injection into global scope
