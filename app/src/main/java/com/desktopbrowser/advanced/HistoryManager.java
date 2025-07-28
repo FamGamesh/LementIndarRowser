@@ -61,8 +61,11 @@ public class HistoryManager extends SQLiteOpenHelper {
         
         if (cursor.moveToFirst()) {
             // Update existing entry
-            long id = cursor.getLong(cursor.getColumnIndex(COLUMN_ID));
-            int visitCount = cursor.getInt(cursor.getColumnIndex(COLUMN_VISIT_COUNT)) + 1;
+            int idIndex = cursor.getColumnIndexOrThrow(COLUMN_ID);
+            int visitCountIndex = cursor.getColumnIndexOrThrow(COLUMN_VISIT_COUNT);
+            
+            long id = cursor.getLong(idIndex);
+            int visitCount = cursor.getInt(visitCountIndex) + 1;
             
             ContentValues values = new ContentValues();
             values.put(COLUMN_TITLE, title);
@@ -93,13 +96,19 @@ public class HistoryManager extends SQLiteOpenHelper {
         Cursor cursor = db.rawQuery(selectQuery, null);
         
         if (cursor.moveToFirst()) {
+            int idIndex = cursor.getColumnIndexOrThrow(COLUMN_ID);
+            int titleIndex = cursor.getColumnIndexOrThrow(COLUMN_TITLE);
+            int urlIndex = cursor.getColumnIndexOrThrow(COLUMN_URL);
+            int timestampIndex = cursor.getColumnIndexOrThrow(COLUMN_TIMESTAMP);
+            int visitCountIndex = cursor.getColumnIndexOrThrow(COLUMN_VISIT_COUNT);
+            
             do {
                 HistoryItem item = new HistoryItem();
-                item.setId(cursor.getLong(cursor.getColumnIndex(COLUMN_ID)));
-                item.setTitle(cursor.getString(cursor.getColumnIndex(COLUMN_TITLE)));
-                item.setUrl(cursor.getString(cursor.getColumnIndex(COLUMN_URL)));
-                item.setTimestamp(cursor.getLong(cursor.getColumnIndex(COLUMN_TIMESTAMP)));
-                item.setVisitCount(cursor.getInt(cursor.getColumnIndex(COLUMN_VISIT_COUNT)));
+                item.setId(cursor.getLong(idIndex));
+                item.setTitle(cursor.getString(titleIndex));
+                item.setUrl(cursor.getString(urlIndex));
+                item.setTimestamp(cursor.getLong(timestampIndex));
+                item.setVisitCount(cursor.getInt(visitCountIndex));
                 
                 history.add(item);
             } while (cursor.moveToNext());

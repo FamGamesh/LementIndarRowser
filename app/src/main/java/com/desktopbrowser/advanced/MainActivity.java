@@ -86,7 +86,11 @@ public class MainActivity extends AppCompatActivity {
         card.setRadius(12);
         card.setUseCompatPadding(true);
         card.setClickable(true);
-        card.setForeground(getDrawable(android.R.drawable.list_selector_background));
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            card.setForeground(getDrawable(android.R.drawable.list_selector_background));
+        } else {
+            card.setForeground(getResources().getDrawable(android.R.drawable.list_selector_background));
+        }
         
         Button button = new Button(this);
         button.setText(name);

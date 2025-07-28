@@ -74,13 +74,19 @@ public class BookmarkManager extends SQLiteOpenHelper {
         Cursor cursor = db.rawQuery(selectQuery, null);
         
         if (cursor.moveToFirst()) {
+            int idIndex = cursor.getColumnIndexOrThrow(COLUMN_ID);
+            int titleIndex = cursor.getColumnIndexOrThrow(COLUMN_TITLE);
+            int urlIndex = cursor.getColumnIndexOrThrow(COLUMN_URL);
+            int timestampIndex = cursor.getColumnIndexOrThrow(COLUMN_TIMESTAMP);
+            int faviconIndex = cursor.getColumnIndexOrThrow(COLUMN_FAVICON);
+            
             do {
                 Bookmark bookmark = new Bookmark();
-                bookmark.setId(cursor.getLong(cursor.getColumnIndex(COLUMN_ID)));
-                bookmark.setTitle(cursor.getString(cursor.getColumnIndex(COLUMN_TITLE)));
-                bookmark.setUrl(cursor.getString(cursor.getColumnIndex(COLUMN_URL)));
-                bookmark.setTimestamp(cursor.getLong(cursor.getColumnIndex(COLUMN_TIMESTAMP)));
-                bookmark.setFavicon(cursor.getString(cursor.getColumnIndex(COLUMN_FAVICON)));
+                bookmark.setId(cursor.getLong(idIndex));
+                bookmark.setTitle(cursor.getString(titleIndex));
+                bookmark.setUrl(cursor.getString(urlIndex));
+                bookmark.setTimestamp(cursor.getLong(timestampIndex));
+                bookmark.setFavicon(cursor.getString(faviconIndex));
                 
                 bookmarks.add(bookmark);
             } while (cursor.moveToNext());
