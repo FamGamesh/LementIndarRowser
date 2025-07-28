@@ -25,15 +25,29 @@ public class BookmarksActivity extends AppCompatActivity {
     private BookmarkManager bookmarkManager;
     private List<Bookmark> bookmarks;
     private BookmarkAdapter adapter;
+    private AdManager adManager;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_bookmarks);
         
+        // Initialize AdManager
+        adManager = AdManager.getInstance(this);
+        
         setupToolbar();
         initializeViews();
+        setupAds();
         loadBookmarks();
+    }
+    
+    private void setupAds() {
+        android.widget.LinearLayout mainContainer = findViewById(R.id.bookmarks_main_container);
+        if (mainContainer != null) {
+            // Add banner ads at top and bottom
+            adManager.addBannerAdToLayout(this, mainContainer, true);  // Top ad
+            adManager.addBannerAdToLayout(this, mainContainer, false); // Bottom ad
+        }
     }
     
     private void setupToolbar() {

@@ -37,6 +37,16 @@ public class BrowserActivity extends AppCompatActivity {
     private boolean isDesktopMode = true; // Default to desktop mode for advanced browsing
     private float currentZoom = 65; // Start at 65% for desktop view
     
+    // New enhanced features
+    private SessionManager sessionManager;
+    private AdManager adManager;
+    private LinearLayout tabsContainer;
+    private LinearLayout zoomControlsContainer;
+    private Button showUrlStackButton, newTabButton;
+    private android.widget.SeekBar zoomSlider;
+    private java.util.List<String> urlStack;
+    private long lastInterstitialTime = 0;
+    
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -61,6 +71,9 @@ public class BrowserActivity extends AppCompatActivity {
     private void initializeManagers() {
         bookmarkManager = BookmarkManager.getInstance(this);
         historyManager = HistoryManager.getInstance(this);
+        sessionManager = SessionManager.getInstance(this);
+        adManager = AdManager.getInstance(this);
+        urlStack = new java.util.ArrayList<>();
     }
     
     private void setupToolbar() {
@@ -85,12 +98,25 @@ public class BrowserActivity extends AppCompatActivity {
         zoomLevel = findViewById(R.id.zoom_level);
         progressBar = findViewById(R.id.progress_bar);
         
+        // New enhanced features
+        tabsContainer = findViewById(R.id.tabs_container);
+        zoomControlsContainer = findViewById(R.id.zoom_controls_container);
+        showUrlStackButton = findViewById(R.id.btn_show_url_stack);
+        newTabButton = findViewById(R.id.btn_new_tab);
+        zoomSlider = findViewById(R.id.zoom_slider);
+        
         if (webView == null || addressBar == null) {
             throw new RuntimeException("Required views not found in layout");
         }
         
         // Update zoom level display
         updateZoomLevel();
+        
+        // Setup zoom slider
+        setupZoomSlider();
+        
+        // Check if restoring session
+        checkSessionRestore();
     }
     
     @SuppressLint("SetJavaScriptEnabled")
@@ -603,19 +629,39 @@ public class BrowserActivity extends AppCompatActivity {
         refreshButton.setOnClickListener(v -> webView.reload());
         
         homeButton.setOnClickListener(v -> {
-            finish(); // Return to main activity
+            // Save current session as "recent session" before going home
+            saveCurrentSessionAsRecent();
+            
+            // Return to main activity with flag
+            Intent intent = new Intent(this, MainActivity.class);
+            intent.putExtra("returning_from_browser", true);
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            startActivity(intent);
+            finish();
         });
         
         // Advanced Desktop Zoom Controls
         zoomInButton.setOnClickListener(v -> {
             currentZoom = Math.min(currentZoom + 10, 200); // Max 200%
             applyZoom();
+            showZoomControls();
         });
         
         zoomOutButton.setOnClickListener(v -> {
             currentZoom = Math.max(currentZoom - 10, 25); // Min 25%
             applyZoom();
+            showZoomControls();
         });
+        
+        // Show URL Stack button
+        if (showUrlStackButton != null) {
+            showUrlStackButton.setOnClickListener(v -> showUrlStackDialog());
+        }
+        
+        // New Tab button  
+        if (newTabButton != null) {
+            newTabButton.setOnClickListener(v -> createNewTab());
+        }
         
         desktopModeButton.setOnClickListener(v -> {
             toggleDesktopMode();
@@ -639,6 +685,15 @@ public class BrowserActivity extends AppCompatActivity {
         
         // Update zoom level display
         updateZoomLevel();
+        
+        // Update zoom slider
+        if (zoomSlider != null) {
+            zoomSlider.setProgress((int) currentZoom);
+        }
+        
+        // Show zoom controls when zooming
+        showZoomControls();
+        hideZoomControlsDelayed();
         
         // Inject zoom adjustment script for better rendering
         String zoomScript = 
@@ -718,6 +773,15 @@ public class BrowserActivity extends AppCompatActivity {
             super.onPageFinished(view, url);
             progressBar.setVisibility(View.GONE);
             updateNavigationButtons();
+            
+            // Add URL to stack for session history
+            if (url != null && !urlStack.contains(url)) {
+                urlStack.add(url);
+                // Keep only last 20 URLs to avoid memory issues
+                if (urlStack.size() > 20) {
+                    urlStack.remove(0);
+                }
+            }
             
             // Inject additional desktop scripts after page loads
             injectAdvancedDesktopScript();
@@ -898,8 +962,154 @@ public class BrowserActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         if (webView != null) {
+            // Save session before destroying (for app close recovery)
+            saveCurrentSessionAsLast();
             webView.destroy();
         }
         super.onDestroy();
+    }
+    
+    // ==================== NEW ENHANCED FEATURES ====================
+    
+    private void setupZoomSlider() {
+        if (zoomSlider != null) {
+            zoomSlider.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+                @Override
+                public void onProgressChanged(android.widget.SeekBar seekBar, int progress, boolean fromUser) {
+                    if (fromUser) {
+                        currentZoom = Math.max(progress, 25); // Min 25%
+                        applyZoom();
+                        showZoomControls();
+                    }
+                }
+                
+                @Override
+                public void onStartTrackingTouch(android.widget.SeekBar seekBar) {
+                    showZoomControls();
+                }
+                
+                @Override
+                public void onStopTrackingTouch(android.widget.SeekBar seekBar) {
+                    // Hide zoom controls after 3 seconds of inactivity
+                    hideZoomControlsDelayed();
+                }
+            });
+        }
+    }
+    
+    private void checkSessionRestore() {
+        boolean restoreSession = getIntent().getBooleanExtra("restore_session", false);
+        if (restoreSession) {
+            String sessionType = getIntent().getStringExtra("session_type");
+            if ("last".equals(sessionType)) {
+                restoreLastSession();
+            } else if ("recent".equals(sessionType)) {
+                restoreRecentSession();
+            }
+        }
+    }
+    
+    private void saveCurrentSessionAsRecent() {
+        SessionManager.BrowserSession session = new SessionManager.BrowserSession();
+        String currentUrl = webView.getUrl();
+        String currentTitle = webView.getTitle();
+        
+        if (currentUrl != null) {
+            SessionManager.TabSession tabSession = sessionManager.createTabSession(webView, currentUrl, currentTitle);
+            session.tabs.add(tabSession);
+            sessionManager.saveRecentSession(session);
+        }
+    }
+    
+    private void saveCurrentSessionAsLast() {
+        SessionManager.BrowserSession session = new SessionManager.BrowserSession();
+        String currentUrl = webView.getUrl();
+        String currentTitle = webView.getTitle();
+        
+        if (currentUrl != null) {
+            SessionManager.TabSession tabSession = sessionManager.createTabSession(webView, currentUrl, currentTitle);
+            session.tabs.add(tabSession);
+            sessionManager.saveLastSession(session);
+        }
+    }
+    
+    private void restoreLastSession() {
+        SessionManager.BrowserSession session = sessionManager.getLastSession();
+        if (session != null && !session.tabs.isEmpty()) {
+            SessionManager.TabSession firstTab = session.tabs.get(0);
+            sessionManager.restoreWebView(webView, firstTab);
+            Toast.makeText(this, "Last session restored", Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    private void restoreRecentSession() {
+        SessionManager.BrowserSession session = sessionManager.getRecentSession();
+        if (session != null && !session.tabs.isEmpty()) {
+            SessionManager.TabSession firstTab = session.tabs.get(0);
+            sessionManager.restoreWebView(webView, firstTab);
+            Toast.makeText(this, "Recent session restored", Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    private void showZoomControls() {
+        if (zoomControlsContainer != null) {
+            zoomControlsContainer.setVisibility(View.VISIBLE);
+            zoomControlsContainer.animate().alpha(1.0f).setDuration(200);
+        }
+    }
+    
+    private void hideZoomControlsDelayed() {
+        if (zoomControlsContainer != null) {
+            zoomControlsContainer.postDelayed(() -> {
+                zoomControlsContainer.animate().alpha(0.0f).setDuration(200)
+                    .withEndAction(() -> zoomControlsContainer.setVisibility(View.GONE));
+            }, 3000); // Hide after 3 seconds
+        }
+    }
+    
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Check for 15-minute interstitial ad rule
+        if (adManager.canShowInterstitial()) {
+            adManager.showBrowsingInterstitial(this);
+        }
+    }
+    
+    private void showUrlStackDialog() {
+        if (urlStack.isEmpty()) {
+            Toast.makeText(this, "No URL history in current session", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
+        builder.setTitle("URL Stack - Session History");
+        
+        String[] urls = urlStack.toArray(new String[0]);
+        builder.setItems(urls, (dialog, which) -> {
+            String selectedUrl = urls[which];
+            loadNewUrl(selectedUrl);
+            Toast.makeText(this, "Loading: " + selectedUrl, Toast.LENGTH_SHORT).show();
+        });
+        
+        builder.setNegativeButton("Close", null);
+        builder.show();
+    }
+    
+    private void createNewTab() {
+        // For now, just load Google in current tab (simplified tab implementation)
+        loadNewUrl("https://www.google.com");
+        Toast.makeText(this, "New tab opened", Toast.LENGTH_SHORT).show();
+    }
+    
+    @Override
+    public void onBackPressed() {
+        if (webView.canGoBack()) {
+            webView.goBack();
+        } else {
+            // Save session before closing
+            saveCurrentSessionAsLast();
+            super.onBackPressed();
+        }
     }
 }

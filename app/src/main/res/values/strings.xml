@@ -1,8 +1,10 @@
 <resources>
-    <string name="app_name">Advanced Desktop Browser</string>
-    <string name="app_subtitle">Intelligent Desktop Web Browser</string>
-    <string name="app_icon_description">Advanced Desktop Browser Icon</string>
+    <string name="app_name">Real Desktop Browser</string>
+    <string name="app_subtitle">Feel the Originality</string>
+    <string name="app_icon_description">Real Desktop Browser Icon</string>
     <string name="search_hint">Enter URL or search term</string>
-    <string name="search_button_text">Browse</string>
+    <string name="search_button_text">Search</string>
     <string name="features_description">• Advanced desktop mode with intelligent viewport simulation\n• Smart user-agent management and stealth features\n• Comprehensive browsing history and bookmarks\n• Professional navigation controls and settings\n• Anti-detection technology for seamless browsing</string>
+    <string name="made_by_text">Made By HEMANT SINGH</string>
+    <string name="refresh_tip">If any page doesn\'t render properly in desktop mode, simply refresh for optimal viewing experience</string>
 </resources>

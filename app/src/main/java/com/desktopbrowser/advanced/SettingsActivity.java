@@ -16,16 +16,30 @@ public class SettingsActivity extends AppCompatActivity {
     private Switch stealthModeSwitch;
     private Switch autofillSwitch;
     private SharedPreferences preferences;
+    private AdManager adManager;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_settings);
         
+        // Initialize AdManager
+        adManager = AdManager.getInstance(this);
+        
         setupToolbar();
         initializeViews();
+        setupAds();
         loadPreferences();
         setupListeners();
+    }
+    
+    private void setupAds() {
+        android.widget.LinearLayout mainContainer = findViewById(R.id.settings_main_container);
+        if (mainContainer != null) {
+            // Add banner ads at top and bottom
+            adManager.addBannerAdToLayout(this, mainContainer, true);  // Top ad
+            adManager.addBannerAdToLayout(this, mainContainer, false); // Bottom ad
+        }
     }
     
     private void setupToolbar() {

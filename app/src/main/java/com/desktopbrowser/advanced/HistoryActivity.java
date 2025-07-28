@@ -26,15 +26,29 @@ public class HistoryActivity extends AppCompatActivity {
     private HistoryManager historyManager;
     private List<HistoryManager.HistoryItem> historyItems;
     private HistoryAdapter adapter;
+    private AdManager adManager;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_history);
         
+        // Initialize AdManager
+        adManager = AdManager.getInstance(this);
+        
         setupToolbar();
         initializeViews();
+        setupAds();
         loadHistory();
+    }
+    
+    private void setupAds() {
+        android.widget.LinearLayout mainContainer = findViewById(R.id.history_main_container);
+        if (mainContainer != null) {
+            // Add banner ads at top and bottom
+            adManager.addBannerAdToLayout(this, mainContainer, true);  // Top ad
+            adManager.addBannerAdToLayout(this, mainContainer, false); // Bottom ad
+        }
     }
     
     private void setupToolbar() {

@@ -14,6 +14,56 @@
         android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
         app:popupTheme="@style/ThemeOverlay.AppCompat.Light" />
 
+    <!-- Tab Management Section -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="#F5F5F5"
+        android:padding="8dp"
+        android:gravity="center_vertical">
+
+        <Button
+            android:id="@+id/btn_show_url_stack"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="Show Url Stack"
+            android:textSize="12sp"
+            android:textColor="@android:color/white"
+            android:background="@drawable/button_background"
+            android:paddingHorizontal="12dp"
+            android:layout_marginEnd="8dp"
+            android:elevation="2dp" />
+
+        <HorizontalScrollView
+            android:id="@+id/tabs_scroll_view"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:id="@+id/tabs_container"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal" />
+
+        </HorizontalScrollView>
+
+        <Button
+            android:id="@+id/btn_new_tab"
+            android:layout_width="40dp"
+            android:layout_height="36dp"
+            android:text="+"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="@android:color/white"
+            android:background="@drawable/button_background"
+            android:layout_marginStart="8dp"
+            android:elevation="2dp" />
+
+    </LinearLayout>
+
     <!-- Navigation Bar -->
     <LinearLayout
         android:layout_width="match_parent"
@@ -21,7 +71,8 @@
         android:orientation="horizontal"
         android:background="@color/surface_color"
         android:padding="8dp"
-        android:gravity="center_vertical">
+        android:gravity="center_vertical"
+        android:elevation="4dp">
 
         <!-- Navigation Buttons -->
         <ImageButton
@@ -29,33 +80,36 @@
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:src="@drawable/ic_arrow_back"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:background="@drawable/feature_card_background"
             android:contentDescription="Go back"
-            android:layout_marginEnd="4dp" />
+            android:layout_marginEnd="4dp"
+            android:elevation="2dp" />
 
         <ImageButton
             android:id="@+id/btn_forward"
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:src="@drawable/ic_arrow_forward"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:background="@drawable/feature_card_background"
             android:contentDescription="Go forward"
-            android:layout_marginEnd="4dp" />
+            android:layout_marginEnd="4dp"
+            android:elevation="2dp" />
 
         <ImageButton
             android:id="@+id/btn_refresh"
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:src="@drawable/ic_refresh"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:background="@drawable/feature_card_background"
             android:contentDescription="Refresh"
-            android:layout_marginEnd="8dp" />
+            android:layout_marginEnd="8dp"
+            android:elevation="2dp" />
 
         <!-- Address Bar -->
         <EditText
             android:id="@+id/address_bar"
             android:layout_width="0dp"
-            android:layout_height="40dp"
+            android:layout_height="44dp"
             android:layout_weight="1"
             android:background="@drawable/edittext_background"
             android:hint="Enter URL or search..."
@@ -64,7 +118,8 @@
             android:padding="12dp"
             android:singleLine="true"
             android:textSize="14sp"
-            android:layout_marginEnd="8dp" />
+            android:layout_marginEnd="8dp"
+            android:elevation="2dp" />
 
         <!-- Home Button -->
         <ImageButton
@@ -72,61 +127,88 @@
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:src="@drawable/ic_home"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:background="@drawable/feature_card_background"
             android:contentDescription="Home"
-            android:layout_marginEnd="8dp" />
+            android:layout_marginEnd="8dp"
+            android:elevation="2dp" />
             
-        <!-- Desktop Browser Controls -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Zoom:"
-            android:textSize="12sp"
-            android:textColor="@color/text_primary"
-            android:layout_marginEnd="4dp"
-            android:gravity="center_vertical" />
-        
-        <ImageButton
-            android:id="@+id/btn_zoom_out"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@android:drawable/btn_dialog"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:text="−"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:contentDescription="Zoom Out"
-            android:layout_marginEnd="4dp" />
-            
-        <TextView
-            android:id="@+id/zoom_level"
-            android:layout_width="35dp"
-            android:layout_height="wrap_content"
-            android:text="65%"
-            android:textSize="11sp"
-            android:textColor="@color/text_primary"
-            android:gravity="center"
-            android:layout_marginEnd="4dp" />
-        
-        <ImageButton
-            android:id="@+id/btn_zoom_in"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@android:drawable/btn_dialog"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:text="+"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:contentDescription="Zoom In"
-            android:layout_marginEnd="8dp" />
-            
+        <!-- Desktop Mode Button -->
         <ImageButton
             android:id="@+id/btn_desktop_mode"
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:src="@drawable/ic_desktop_browser"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Toggle Desktop Mode" />
+            android:background="@drawable/feature_card_background"
+            android:contentDescription="Toggle Desktop Mode"
+            android:elevation="2dp" />
+
+    </LinearLayout>
+
+    <!-- Dynamic Zoom Controls (Initially Hidden) -->
+    <LinearLayout
+        android:id="@+id/zoom_controls_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="#E3F2FD"
+        android:padding="8dp"
+        android:gravity="center"
+        android:visibility="gone"
+        android:elevation="4dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Zoom:"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:layout_marginEnd="8dp" />
+        
+        <ImageButton
+            android:id="@+id/btn_zoom_out"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:text="−"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="@android:color/white"
+            android:background="@drawable/button_background"
+            android:contentDescription="Zoom Out"
+            android:layout_marginEnd="8dp"
+            android:elevation="2dp" />
+            
+        <SeekBar
+            android:id="@+id/zoom_slider"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:max="150"
+            android:progress="65"
+            android:layout_marginHorizontal="8dp" />
+            
+        <TextView
+            android:id="@+id/zoom_level"
+            android:layout_width="50dp"
+            android:layout_height="wrap_content"
+            android:text="65%"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:gravity="center"
+            android:layout_marginEnd="8dp" />
+        
+        <ImageButton
+            android:id="@+id/btn_zoom_in"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:text="+"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="@android:color/white"
+            android:background="@drawable/button_background"
+            android:contentDescription="Zoom In"
+            android:elevation="2dp" />
 
     </LinearLayout>
 
@@ -139,7 +221,7 @@
         style="@android:style/Widget.ProgressBar.Horizontal"
         android:progressTint="@color/accent_color" />
 
-    <!-- WebView Container with Desktop Features -->
+    <!-- WebView Container -->
     <FrameLayout
         android:id="@+id/webview_container"
         android:layout_width="match_parent"

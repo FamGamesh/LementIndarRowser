@@ -3,9 +3,10 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/background_light">
+    android:background="@drawable/main_background_gradient">
 
     <LinearLayout
+        android:id="@+id/main_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
@@ -20,9 +21,9 @@
             android:layout_marginBottom="32dp">
 
             <ImageView
-                android:layout_width="64dp"
-                android:layout_height="64dp"
-                android:src="@drawable/ic_desktop_browser"
+                android:layout_width="72dp"
+                android:layout_height="72dp"
+                android:src="@mipmap/ic_launcher"
                 android:layout_marginEnd="16dp"
                 android:contentDescription="@string/app_name" />
 
@@ -38,15 +39,23 @@
                     android:text="@string/app_name"
                     android:textSize="28sp"
                     android:textStyle="bold"
-                    android:textColor="@color/text_primary" />
+                    android:textColor="@android:color/white"
+                    android:shadowColor="#80000000"
+                    android:shadowDx="2"
+                    android:shadowDy="2"
+                    android:shadowRadius="4" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/app_subtitle"
-                    android:textSize="14sp"
-                    android:textColor="@color/text_secondary"
-                    android:layout_marginTop="4dp" />
+                    android:textSize="16sp"
+                    android:textColor="#E3F2FD"
+                    android:layout_marginTop="4dp"
+                    android:shadowColor="#80000000"
+                    android:shadowDx="1"
+                    android:shadowDy="1"
+                    android:shadowRadius="2" />
 
             </LinearLayout>
 
@@ -56,24 +65,25 @@
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:cardElevation="8dp"
-            app:cardCornerRadius="16dp"
-            android:layout_marginBottom="24dp">
+            app:cardElevation="12dp"
+            app:cardCornerRadius="20dp"
+            android:layout_marginBottom="16dp"
+            app:cardBackgroundColor="@android:color/white">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="20dp">
+                android:padding="24dp">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Enter URL or Search"
-                    android:textSize="16sp"
+                    android:textSize="18sp"
                     android:textStyle="bold"
                     android:textColor="@color/text_primary"
-                    android:layout_marginBottom="12dp" />
+                    android:layout_marginBottom="16dp" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -101,11 +111,37 @@
                         android:background="@drawable/button_background"
                         android:textColor="@android:color/white"
                         android:textStyle="bold"
-                        android:minWidth="100dp" />
+                        android:textSize="16sp"
+                        android:minWidth="120dp"
+                        android:elevation="4dp" />
 
                 </LinearLayout>
 
             </LinearLayout>
+
+        </androidx.cardview.widget.CardView>
+
+        <!-- Refresh Tip -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardElevation="6dp"
+            app:cardCornerRadius="12dp"
+            android:layout_marginBottom="24dp"
+            app:cardBackgroundColor="#FFECB3">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/refresh_tip"
+                android:textSize="14sp"
+                android:textColor="#E65100"
+                android:textStyle="italic"
+                android:padding="16dp"
+                android:gravity="center"
+                android:drawableStart="@drawable/ic_refresh"
+                android:drawablePadding="8dp"
+                android:drawableTint="#FF9800" />
 
         </androidx.cardview.widget.CardView>
 
@@ -127,7 +163,8 @@
                 android:background="@drawable/feature_card_background"
                 android:padding="16dp"
                 android:layout_marginEnd="8dp"
-                android:textColor="@color/text_primary" />
+                android:textColor="@color/text_primary"
+                android:elevation="4dp" />
 
             <Button
                 android:id="@+id/btn_bookmarks"
@@ -139,7 +176,8 @@
                 android:background="@drawable/feature_card_background"
                 android:padding="16dp"
                 android:layout_marginHorizontal="8dp"
-                android:textColor="@color/text_primary" />
+                android:textColor="@color/text_primary"
+                android:elevation="4dp" />
 
             <Button
                 android:id="@+id/btn_settings"
@@ -151,7 +189,8 @@
                 android:background="@drawable/feature_card_background"
                 android:padding="16dp"
                 android:layout_marginStart="8dp"
-                android:textColor="@color/text_primary" />
+                android:textColor="@color/text_primary"
+                android:elevation="4dp" />
 
         </LinearLayout>
 
@@ -160,10 +199,14 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Quick Access"
-            android:textSize="18sp"
+            android:textSize="20sp"
             android:textStyle="bold"
-            android:textColor="@color/text_primary"
-            android:layout_marginBottom="16dp" />
+            android:textColor="@android:color/white"
+            android:layout_marginBottom="16dp"
+            android:shadowColor="#80000000"
+            android:shadowDx="2"
+            android:shadowDy="2"
+            android:shadowRadius="4" />
 
         <GridLayout
             android:id="@+id/quick_access_grid"
@@ -172,38 +215,36 @@
             android:columnCount="2"
             android:rowCount="3"
             android:orientation="horizontal"
-            android:layout_marginBottom="24dp" />
+            android:layout_marginBottom="32dp" />
 
-        <!-- Features Description -->
+        <!-- Made By Section (Golden Box) -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:cardElevation="4dp"
-            app:cardCornerRadius="12dp"
+            app:cardElevation="8dp"
+            app:cardCornerRadius="16dp"
             android:layout_marginTop="16dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="20dp">
+                android:background="@drawable/golden_box_background"
+                android:padding="20dp"
+                android:gravity="center">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="🖥️ Advanced Desktop Browser Features"
-                    android:textSize="16sp"
+                    android:text="@string/made_by_text"
+                    android:textSize="18sp"
                     android:textStyle="bold"
-                    android:textColor="@color/text_primary"
-                    android:layout_marginBottom="12dp" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/features_description"
-                    android:textSize="14sp"
-                    android:textColor="@color/text_secondary"
-                    android:lineSpacingMultiplier="1.2" />
+                    android:textColor="#8B4513"
+                    android:shadowColor="#40000000"
+                    android:shadowDx="1"
+                    android:shadowDy="1"
+                    android:shadowRadius="2"
+                    android:letterSpacing="0.1" />
 
             </LinearLayout>
 
