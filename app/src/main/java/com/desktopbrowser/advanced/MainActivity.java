@@ -504,5 +504,18 @@ public class MainActivity extends AppCompatActivity {
             getIntent().putExtra("returning_from_browser", false);
             isReturningFromBrowser = false;
         }
+        
+        // Emergency cleanup for any stuck ads (safety measure)
+        if (adManager != null) {
+            // Small delay to let the activity fully resume
+            android.os.Handler resumeHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+            resumeHandler.postDelayed(() -> {
+                try {
+                    adManager.emergencyCleanupInterstitial();
+                } catch (Exception e) {
+                    // Ignore cleanup errors
+                }
+            }, 500);
+        }
     }
 }

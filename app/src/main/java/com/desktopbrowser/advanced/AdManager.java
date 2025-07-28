@@ -129,32 +129,59 @@ public class AdManager {
             return;
         }
         
+        // Additional safety check for activity state
+        if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
+            Log.w(TAG, "Activity is not in valid state for showing ads");
+            if (onAdClosed != null) {
+                try {
+                    onAdClosed.run();
+                } catch (Exception e) {
+                    Log.e(TAG, "Error in activity state callback", e);
+                }
+            }
+            return;
+        }
+        
         lastAdClickTime = currentTime;
         
         if (interstitialAd != null) {
             isShowingInterstitial = true;
+            Log.d(TAG, "Starting to show interstitial ad - setting up callbacks");
             
             interstitialAd.setFullScreenContentCallback(new FullScreenContentCallback() {
                 @Override
                 public void onAdDismissedFullScreenContent() {
-                    Log.d(TAG, "Interstitial ad dismissed by user");
+                    Log.d(TAG, "Interstitial ad dismissed by user - initiating delayed cleanup");
+                    // Do NOT do immediate cleanup here - let the ad finish its dismissal animation
                     handleInterstitialAdClosed(onAdClosed);
                 }
                 
                 @Override
                 public void onAdFailedToShowFullScreenContent(AdError adError) {
                     Log.e(TAG, "Interstitial ad failed to show: " + adError.getMessage());
-                    handleInterstitialAdClosed(onAdClosed);
+                    // For failures, we can do immediate cleanup since no ad is showing
+                    isShowingInterstitial = false;
+                    interstitialAd = null;
+                    loadInterstitialAd();
+                    
+                    if (onAdClosed != null) {
+                        try {
+                            onAdClosed.run();
+                        } catch (Exception e) {
+                            Log.e(TAG, "Error in failure callback", e);
+                        }
+                    }
                 }
                 
                 @Override
                 public void onAdShowedFullScreenContent() {
-                    Log.d(TAG, "Interstitial ad showed successfully");
+                    Log.d(TAG, "Interstitial ad showed successfully - close button should be responsive");
                 }
                 
                 @Override
                 public void onAdClicked() {
                     Log.d(TAG, "Interstitial ad clicked");
+                    // Do not perform any cleanup operations on click
                 }
                 
                 @Override
@@ -166,9 +193,18 @@ public class AdManager {
             try {
                 interstitialAd.show(activity);
                 lastInterstitialTime = System.currentTimeMillis();
+                Log.d(TAG, "Interstitial ad.show() called successfully");
             } catch (Exception e) {
                 Log.e(TAG, "Error showing interstitial ad", e);
-                handleInterstitialAdClosed(onAdClosed);
+                // Reset flag if show() fails
+                isShowingInterstitial = false;
+                if (onAdClosed != null) {
+                    try {
+                        onAdClosed.run();
+                    } catch (Exception callbackError) {
+                        Log.e(TAG, "Error in show failure callback", callbackError);
+                    }
+                }
             }
         } else {
             Log.d(TAG, "Interstitial ad not ready, proceeding without ad");
@@ -183,22 +219,27 @@ public class AdManager {
     }
     
     private void handleInterstitialAdClosed(Runnable onAdClosed) {
-        // Reset flags and clean up
-        isShowingInterstitial = false;
-        interstitialAd = null;
-        
-        // Use handler with delay to ensure proper cleanup
+        // Use handler with delay to ensure complete ad dismissal before any cleanup
         android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
         mainHandler.postDelayed(() -> {
             try {
+                // Now it's safe to reset flags and clean up after ad dismissal is complete
+                isShowingInterstitial = false;
+                interstitialAd = null;
+                
                 loadInterstitialAd(); // Load next ad
                 if (onAdClosed != null) {
                     onAdClosed.run();
                 }
+                
+                Log.d(TAG, "Interstitial cleanup completed successfully");
             } catch (Exception e) {
                 Log.e(TAG, "Error in interstitial cleanup callback", e);
+                // Ensure flags are reset even if cleanup fails
+                isShowingInterstitial = false;
+                interstitialAd = null;
             }
-        }, 500); // 500ms delay to ensure proper ad dismissal
+        }, 1000); // Increased to 1000ms delay to allow complete ad dismissal animation
     }
     
     // Check if enough time has passed for next interstitial ad (15 minutes rule)
@@ -341,27 +382,68 @@ public class AdManager {
     }
     
     public void forceCleanupAds() {
-        // Force cleanup any stuck ads
+        Log.w(TAG, "Force cleanup initiated - resetting all ad states");
+        
+        // Force cleanup any stuck ads with proper logging
+        boolean wasShowingInterstitial = isShowingInterstitial;
+        boolean wasShowingRewarded = isShowingRewarded;
+        
         isShowingInterstitial = false;
         isShowingRewarded = false;
         
         if (interstitialAd != null) {
+            Log.d(TAG, "Cleaning up stuck interstitial ad");
             interstitialAd = null;
         }
         if (rewardedAd != null) {
+            Log.d(TAG, "Cleaning up stuck rewarded ad");
             rewardedAd = null;
         }
         
-        // Reload ads
-        loadInterstitialAd();
-        loadRewardedAd();
+        // Reset timing controls
+        lastAdClickTime = 0;
         
-        Log.d(TAG, "Force cleanup completed - all ad states reset");
+        // Reload ads with delay to ensure proper cleanup
+        android.os.Handler cleanupHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+        cleanupHandler.postDelayed(() -> {
+            loadInterstitialAd();
+            loadRewardedAd();
+            Log.d(TAG, "Force cleanup completed - all ad states reset and new ads loaded");
+        }, 1500); // Longer delay for force cleanup
+        
+        Log.w(TAG, String.format("Force cleanup stats - Was showing interstitial: %b, Was showing rewarded: %b", 
+            wasShowingInterstitial, wasShowingRewarded));
     }
     
     public void showBrowsingInterstitial(Activity activity) {
         if (canShowInterstitial()) {
             showInterstitialAd(activity, null);
         }
+    }
+    
+    // Emergency cleanup method for activities to call when interstitial ads get stuck
+    public void emergencyCleanupInterstitial() {
+        Log.w(TAG, "Emergency interstitial cleanup requested");
+        
+        if (isShowingInterstitial) {
+            isShowingInterstitial = false;
+            Log.d(TAG, "Reset isShowingInterstitial flag");
+        }
+        
+        if (interstitialAd != null) {
+            try {
+                interstitialAd = null;
+                Log.d(TAG, "Nullified stuck interstitial ad");
+            } catch (Exception e) {
+                Log.e(TAG, "Error during emergency cleanup", e);
+            }
+        }
+        
+        // Load new ad after cleanup
+        android.os.Handler emergencyHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+        emergencyHandler.postDelayed(() -> {
+            loadInterstitialAd();
+            Log.d(TAG, "Emergency cleanup completed - new ad loaded");
+        }, 2000);
     }
 }
