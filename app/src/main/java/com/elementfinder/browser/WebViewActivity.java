@@ -5,9 +5,12 @@ import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -18,6 +21,9 @@ import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.Button;
+import android.widget.Chronometer;
+import android.widget.LinearLayout;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
@@ -37,9 +43,16 @@ public class WebViewActivity extends AppCompatActivity {
     private WebView webView;
     private boolean isRecordingMacro = false;
     private List<String> recordedSelectors = new ArrayList<>();
+    private List<String> recordedElementNames = new ArrayList<>();
     private Handler longPressHandler = new Handler(Looper.getMainLooper());
     private Runnable longPressRunnable;
     private boolean isLongPressTriggered = false;
+    
+    // UI elements for macro recording
+    private LinearLayout macroControlPanel;
+    private Button stopMacroButton;
+    private Button viewSavedFilesButton;
+    private Chronometer macroTimer;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -49,6 +62,7 @@ public class WebViewActivity extends AppCompatActivity {
             setContentView(R.layout.activity_webview);
             
             setupToolbar();
+            setupMacroControls();
             initializeWebView();
             loadUrl();
             
@@ -72,6 +86,19 @@ public class WebViewActivity extends AppCompatActivity {
         }
     }
     
+    private void setupMacroControls() {
+        macroControlPanel = findViewById(R.id.macro_control_panel);
+        stopMacroButton = findViewById(R.id.stop_macro_button);
+        viewSavedFilesButton = findViewById(R.id.view_saved_files_button);
+        macroTimer = findViewById(R.id.macro_timer);
+        
+        stopMacroButton.setOnClickListener(v -> stopMacroRecording());
+        viewSavedFilesButton.setOnClickListener(v -> showSavedFiles());
+        
+        // Initially hide macro controls
+        macroControlPanel.setVisibility(View.GONE);
+    }
+    
     @SuppressLint("SetJavaScriptEnabled")
     private void initializeWebView() {
         try {
@@ -90,8 +117,6 @@ public class WebViewActivity extends AppCompatActivity {
             webSettings.setDisplayZoomControls(false);
             webSettings.setSupportZoom(true);
             webSettings.setDefaultTextEncodingName("utf-8");
-            
-            // Additional safety settings
             webSettings.setAllowFileAccess(false);
             webSettings.setAllowContentAccess(false);
             webSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
@@ -100,11 +125,11 @@ public class WebViewActivity extends AppCompatActivity {
                 @Override
                 public void onPageFinished(WebView view, String url) {
                     super.onPageFinished(view, url);
-                    try {
+                    // Add delay to ensure page is fully loaded
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
                         injectSelectorScript();
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error injecting selector script", e);
-                    }
+                        Toast.makeText(WebViewActivity.this, "Page loaded. Long press elements to view selectors!", Toast.LENGTH_LONG).show();
+                    }, 1000);
                 }
                 
                 @Override
@@ -143,14 +168,36 @@ public class WebViewActivity extends AppCompatActivity {
                     switch (event.getAction()) {
                         case MotionEvent.ACTION_DOWN:
                             isLongPressTriggered = false;
+                            final float downX = event.getX();
+                            final float downY = event.getY();
+                            
                             longPressRunnable = new Runnable() {
                                 @Override
                                 public void run() {
                                     isLongPressTriggered = true;
-                                    float x = event.getX();
-                                    float y = event.getY();
-                                    webView.evaluateJavascript(
-                                        "handleLongPress(" + x + ", " + y + ");", null);
+                                    Log.d(TAG, "Long press detected at: " + downX + ", " + downY);
+                                    
+                                    // Execute JavaScript to find element at coordinates
+                                    String jsCode = String.format(
+                                        "try { " +
+                                        "  var element = document.elementFromPoint(%f, %f); " +
+                                        "  if (element) { " +
+                                        "    handleLongPress(%f, %f); " +
+                                        "  } else { " +
+                                        "    Android.showError('No element found at coordinates'); " +
+                                        "  } " +
+                                        "} catch(e) { " +
+                                        "  Android.showError('Error: ' + e.message); " +
+                                        "}", downX, downY, downX, downY);
+                                    
+                                    webView.evaluateJavascript(jsCode, result -> {
+                                        Log.d(TAG, "JavaScript execution result: " + result);
+                                    });
+                                    
+                                    // Show visual feedback
+                                    runOnUiThread(() -> {
+                                        Toast.makeText(WebViewActivity.this, "Analyzing element...", Toast.LENGTH_SHORT).show();
+                                    });
                                 }
                             };
                             longPressHandler.postDelayed(longPressRunnable, 2000);
@@ -161,15 +208,25 @@ public class WebViewActivity extends AppCompatActivity {
                             if (longPressRunnable != null) {
                                 longPressHandler.removeCallbacks(longPressRunnable);
                             }
+                            
+                            // Handle macro recording for normal clicks
                             if (!isLongPressTriggered && isRecordingMacro) {
-                                float x = event.getX();
-                                float y = event.getY();
-                                webView.evaluateJavascript(
-                                    "recordClick(" + x + ", " + y + ");", null);
+                                final float upX = event.getX();
+                                final float upY = event.getY();
+                                
+                                String jsCode = String.format(
+                                    "try { " +
+                                    "  recordClick(%f, %f); " +
+                                    "} catch(e) { " +
+                                    "  Android.showError('Record error: ' + e.message); " +
+                                    "}", upX, upY);
+                                
+                                webView.evaluateJavascript(jsCode, null);
                             }
                             break;
                             
                         case MotionEvent.ACTION_MOVE:
+                            // Cancel long press on movement
                             if (longPressRunnable != null) {
                                 longPressHandler.removeCallbacks(longPressRunnable);
                             }
@@ -178,7 +235,7 @@ public class WebViewActivity extends AppCompatActivity {
                 } catch (Exception e) {
                     Log.e(TAG, "Error in touch handler", e);
                 }
-                return false;
+                return false; // Allow WebView to handle the touch as well
             }
         });
     }
@@ -203,7 +260,9 @@ public class WebViewActivity extends AppCompatActivity {
     private void injectSelectorScript() {
         try {
             String script = getSelectorScript();
-            webView.evaluateJavascript(script, null);
+            webView.evaluateJavascript(script, result -> {
+                Log.d(TAG, "Selector script injected, result: " + result);
+            });
         } catch (Exception e) {
             Log.e(TAG, "Error injecting script", e);
         }
@@ -211,26 +270,29 @@ public class WebViewActivity extends AppCompatActivity {
     
     private String getSelectorScript() {
         return "javascript:" +
+            "console.log('Element Finder Browser: Selector script loading...');" +
             "var elementFinderBrowser = {" +
             "  generateCSSSelector: function(element) {" +
-            "    if (!element) return '';" +
+            "    if (!element) return { selector: '', name: 'unknown' };" +
             "    " +
             "    try {" +
+            "      var elementName = this.getElementName(element);" +
+            "      " +
             "      // Priority 1: ID selector" +
             "      if (element.id) {" +
             "        var idSelector = '#' + element.id;" +
             "        if (document.querySelectorAll(idSelector).length === 1) {" +
-            "          return idSelector;" +
+            "          return { selector: idSelector, name: elementName };" +
             "        }" +
             "      }" +
             "      " +
             "      // Priority 2: Class selector with uniqueness check" +
-            "      if (element.className) {" +
+            "      if (element.className && typeof element.className === 'string') {" +
             "        var classes = element.className.split(' ').filter(function(c) { return c.length > 0; });" +
             "        for (var i = 0; i < classes.length; i++) {" +
             "          var classSelector = '.' + classes[i];" +
             "          if (document.querySelectorAll(classSelector).length === 1) {" +
-            "            return classSelector;" +
+            "            return { selector: classSelector, name: elementName };" +
             "          }" +
             "        }" +
             "        " +
@@ -238,7 +300,7 @@ public class WebViewActivity extends AppCompatActivity {
             "        if (classes.length > 1) {" +
             "          var combinedClass = '.' + classes.join('.');" +
             "          if (document.querySelectorAll(combinedClass).length === 1) {" +
-            "            return combinedClass;" +
+            "            return { selector: combinedClass, name: elementName };" +
             "          }" +
             "        }" +
             "      }" +
@@ -249,9 +311,11 @@ public class WebViewActivity extends AppCompatActivity {
             "        var attr = attributes[j];" +
             "        if (element.hasAttribute(attr)) {" +
             "          var attrValue = element.getAttribute(attr);" +
-            "          var attrSelector = element.tagName.toLowerCase() + '[' + attr + '=\"' + attrValue + '\"]';" +
-            "          if (document.querySelectorAll(attrSelector).length === 1) {" +
-            "            return attrSelector;" +
+            "          if (attrValue) {" +
+            "            var attrSelector = element.tagName.toLowerCase() + '[' + attr + '=\"' + attrValue + '\"]';" +
+            "            if (document.querySelectorAll(attrSelector).length === 1) {" +
+            "              return { selector: attrSelector, name: elementName };" +
+            "            }" +
             "          }" +
             "        }" +
             "      }" +
@@ -262,19 +326,39 @@ public class WebViewActivity extends AppCompatActivity {
             "        var siblings = Array.from(parent.children);" +
             "        var index = siblings.indexOf(element) + 1;" +
             "        var nthSelector = element.tagName.toLowerCase() + ':nth-child(' + index + ')';" +
-            "        return nthSelector;" +
+            "        return { selector: nthSelector, name: elementName };" +
             "      }" +
             "      " +
-            "      return element.tagName.toLowerCase();" +
+            "      return { selector: element.tagName.toLowerCase(), name: elementName };" +
             "    } catch (e) {" +
-            "      return element.tagName ? element.tagName.toLowerCase() : 'unknown';" +
+            "      console.error('CSS Selector generation error:', e);" +
+            "      return { selector: 'error', name: 'unknown' };" +
+            "    }" +
+            "  }," +
+            "  " +
+            "  getElementName: function(element) {" +
+            "    try {" +
+            "      if (element.id) return element.tagName.toLowerCase() + ' (id: ' + element.id + ')';" +
+            "      if (element.name) return element.tagName.toLowerCase() + ' (name: ' + element.name + ')';" +
+            "      if (element.className && typeof element.className === 'string') {" +
+            "        var firstClass = element.className.split(' ')[0];" +
+            "        if (firstClass) return element.tagName.toLowerCase() + ' (class: ' + firstClass + ')';" +
+            "      }" +
+            "      if (element.placeholder) return element.tagName.toLowerCase() + ' (placeholder: ' + element.placeholder + ')';" +
+            "      if (element.textContent && element.textContent.trim().length > 0 && element.textContent.trim().length < 50) {" +
+            "        return element.tagName.toLowerCase() + ' (text: ' + element.textContent.trim().substring(0, 30) + ')';" +
+            "      }" +
+            "      return element.tagName.toLowerCase() + ' element';" +
+            "    } catch (e) {" +
+            "      return 'unknown element';" +
             "    }" +
             "  }," +
             "  " +
             "  generateXPathSelector: function(element) {" +
-            "    if (!element) return '';" +
+            "    if (!element) return { selector: '', name: 'unknown' };" +
             "    " +
             "    try {" +
+            "      var elementName = this.getElementName(element);" +
             "      var xpath = '';" +
             "      var current = element;" +
             "      " +
@@ -296,51 +380,66 @@ public class WebViewActivity extends AppCompatActivity {
             "        current = current.parentElement;" +
             "      }" +
             "      " +
-            "      return xpath;" +
+            "      return { selector: xpath, name: elementName };" +
             "    } catch (e) {" +
-            "      return '/unknown';" +
+            "      console.error('XPath generation error:', e);" +
+            "      return { selector: 'error', name: 'unknown' };" +
             "    }" +
             "  }," +
             "  " +
             "  getBestSelector: function(element) {" +
             "    try {" +
-            "      var cssSelector = this.generateCSSSelector(element);" +
-            "      var xpathSelector = this.generateXPathSelector(element);" +
+            "      var cssResult = this.generateCSSSelector(element);" +
+            "      var xpathResult = this.generateXPathSelector(element);" +
             "      " +
             "      return {" +
-            "        css: cssSelector," +
-            "        xpath: xpathSelector," +
-            "        recommended: cssSelector.length > 0 ? cssSelector : xpathSelector" +
+            "        css: cssResult.selector," +
+            "        xpath: xpathResult.selector," +
+            "        recommended: cssResult.selector.length > 0 && cssResult.selector !== 'error' ? cssResult.selector : xpathResult.selector," +
+            "        elementName: cssResult.name" +
             "      };" +
             "    } catch (e) {" +
-            "      return { css: 'error', xpath: 'error', recommended: 'error' };" +
+            "      console.error('getBestSelector error:', e);" +
+            "      return { css: 'error', xpath: 'error', recommended: 'error', elementName: 'unknown' };" +
             "    }" +
             "  }" +
             "};" +
             "" +
             "function handleLongPress(x, y) {" +
             "  try {" +
+            "    console.log('handleLongPress called with coordinates:', x, y);" +
             "    var element = document.elementFromPoint(x, y);" +
+            "    console.log('Element found:', element);" +
+            "    " +
             "    if (element) {" +
             "      var selectors = elementFinderBrowser.getBestSelector(element);" +
+            "      console.log('Selectors generated:', selectors);" +
             "      Android.showSelectorDialog(JSON.stringify(selectors));" +
+            "    } else {" +
+            "      Android.showError('No element found at coordinates');" +
             "    }" +
             "  } catch (e) {" +
             "    console.error('Error in handleLongPress:', e);" +
+            "    Android.showError('Error in handleLongPress: ' + e.message);" +
             "  }" +
             "}" +
             "" +
             "function recordClick(x, y) {" +
             "  try {" +
+            "    console.log('recordClick called with coordinates:', x, y);" +
             "    var element = document.elementFromPoint(x, y);" +
             "    if (element) {" +
             "      var selectors = elementFinderBrowser.getBestSelector(element);" +
-            "      Android.recordSelector(selectors.recommended);" +
+            "      console.log('Recording selector:', selectors);" +
+            "      Android.recordSelector(selectors.recommended, selectors.elementName);" +
             "    }" +
             "  } catch (e) {" +
             "    console.error('Error in recordClick:', e);" +
+            "    Android.showError('Error in recordClick: ' + e.message);" +
             "  }" +
-            "}";
+            "}" +
+            "" +
+            "console.log('Element Finder Browser: Selector script loaded successfully');";
     }
     
     @Override
@@ -354,8 +453,9 @@ public class WebViewActivity extends AppCompatActivity {
         MenuItem recordItem = menu.findItem(R.id.action_record_macro);
         if (recordItem != null) {
             if (isRecordingMacro) {
-                recordItem.setTitle("Stop Macro");
+                recordItem.setVisible(false); // Hide menu item when recording
             } else {
+                recordItem.setVisible(true);
                 recordItem.setTitle("Record Macro");
             }
         }
@@ -371,7 +471,7 @@ public class WebViewActivity extends AppCompatActivity {
                 onBackPressed();
                 return true;
             } else if (id == R.id.action_record_macro) {
-                toggleMacroRecording();
+                startMacroRecording();
                 return true;
             } else if (id == R.id.action_desktop_mode) {
                 toggleDesktopMode();
@@ -385,25 +485,32 @@ public class WebViewActivity extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
     }
     
-    private void toggleMacroRecording() {
-        if (isRecordingMacro) {
-            stopMacroRecording();
-        } else {
-            startMacroRecording();
-        }
-    }
-    
     private void startMacroRecording() {
         isRecordingMacro = true;
         recordedSelectors.clear();
-        Toast.makeText(this, "Macro recording started", Toast.LENGTH_SHORT).show();
+        recordedElementNames.clear();
+        
+        // Show macro control panel
+        macroControlPanel.setVisibility(View.VISIBLE);
+        
+        // Start timer
+        macroTimer.setBase(SystemClock.elapsedRealtime());
+        macroTimer.start();
+        
+        Toast.makeText(this, "Macro recording started - Click elements to record their selectors", Toast.LENGTH_LONG).show();
         invalidateOptionsMenu();
     }
     
     private void stopMacroRecording() {
         isRecordingMacro = false;
+        
+        // Stop timer
+        macroTimer.stop();
+        
+        // Hide macro control panel
+        macroControlPanel.setVisibility(View.GONE);
+        
         saveMacroToFile();
-        Toast.makeText(this, "Macro recording stopped and saved", Toast.LENGTH_SHORT).show();
         invalidateOptionsMenu();
     }
     
@@ -447,20 +554,80 @@ public class WebViewActivity extends AppCompatActivity {
             writer.write("Element Finder Browser - Macro Recording\n");
             writer.write("Generated on: " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date()) + "\n");
             writer.write("URL: " + webView.getUrl() + "\n");
+            writer.write("Total selectors recorded: " + recordedSelectors.size() + "\n");
             writer.write("===========================================\n\n");
             
             for (int i = 0; i < recordedSelectors.size(); i++) {
-                writer.write("Step " + (i + 1) + ": " + recordedSelectors.get(i) + "\n");
+                String elementName = i < recordedElementNames.size() ? recordedElementNames.get(i) : "unknown element";
+                writer.write("Selector: " + recordedSelectors.get(i) + " : " + elementName + "\n");
             }
             
             writer.close();
             
-            Toast.makeText(this, "Macro saved: " + macroFile.getName(), Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Macro saved: " + macroFile.getName() + " (" + recordedSelectors.size() + " selectors)", Toast.LENGTH_LONG).show();
             
         } catch (IOException e) {
             Log.e(TAG, "Error saving macro", e);
             Toast.makeText(this, "Error saving macro: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
+    }
+    
+    private void showSavedFiles() {
+        try {
+            File appDir = new File(getFilesDir(), "Element Finder Browser");
+            File[] files = appDir.listFiles((dir, name) -> name.startsWith("macro_") && name.endsWith(".txt"));
+            
+            if (files == null || files.length == 0) {
+                Toast.makeText(this, "No saved macro files found", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            
+            AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            builder.setTitle("Saved Macro Files (" + files.length + ")");
+            
+            String[] fileNames = new String[files.length];
+            for (int i = 0; i < files.length; i++) {
+                fileNames[i] = files[i].getName() + " (" + formatFileSize(files[i].length()) + ")";
+            }
+            
+            builder.setItems(fileNames, (dialog, which) -> {
+                File selectedFile = files[which];
+                openFileInExternalApp(selectedFile);
+            });
+            
+            builder.setNegativeButton("Close", null);
+            builder.show();
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error showing saved files", e);
+            Toast.makeText(this, "Error accessing saved files: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    private void openFileInExternalApp(File file) {
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            Uri uri = androidx.core.content.FileProvider.getUriForFile(this, 
+                getPackageName() + ".fileprovider", file);
+            intent.setDataAndType(uri, "text/plain");
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            
+            Intent chooser = Intent.createChooser(intent, "Open macro file with...");
+            if (chooser.resolveActivity(getPackageManager()) != null) {
+                startActivity(chooser);
+            } else {
+                Toast.makeText(this, "No text editor app found", Toast.LENGTH_SHORT).show();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error opening file", e);
+            Toast.makeText(this, "Error opening file: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    private String formatFileSize(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return (bytes / 1024) + " KB";
+        return (bytes / (1024 * 1024)) + " MB";
     }
     
     public class SelectorJavaScriptInterface {
@@ -474,40 +641,55 @@ public class WebViewActivity extends AppCompatActivity {
                         String css = selectors.optString("css", "");
                         String xpath = selectors.optString("xpath", "");
                         String recommended = selectors.optString("recommended", "");
+                        String elementName = selectors.optString("elementName", "unknown element");
                         
-                        showSelectorChoiceDialog(css, xpath, recommended);
+                        showSelectorChoiceDialog(css, xpath, recommended, elementName);
                     } catch (Exception e) {
                         Log.e(TAG, "Error parsing selectors", e);
-                        Toast.makeText(WebViewActivity.this, "Error parsing selectors", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(WebViewActivity.this, "Error parsing selectors: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                     }
                 }
             });
         }
         
         @JavascriptInterface
-        public void recordSelector(String selector) {
+        public void recordSelector(String selector, String elementName) {
             if (isRecordingMacro && selector != null && !selector.isEmpty()) {
                 recordedSelectors.add(selector);
+                recordedElementNames.add(elementName != null ? elementName : "unknown element");
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        Toast.makeText(WebViewActivity.this, "Selector recorded (" + recordedSelectors.size() + ")", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(WebViewActivity.this, 
+                            "Selector recorded (" + recordedSelectors.size() + "): " + elementName, 
+                            Toast.LENGTH_SHORT).show();
                     }
                 });
             }
         }
+        
+        @JavascriptInterface
+        public void showError(String error) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    Log.e(TAG, "JavaScript error: " + error);
+                    Toast.makeText(WebViewActivity.this, "JS Error: " + error, Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
     }
     
-    private void showSelectorChoiceDialog(String css, String xpath, String recommended) {
+    private void showSelectorChoiceDialog(String css, String xpath, String recommended, String elementName) {
         try {
             AlertDialog.Builder builder = new AlertDialog.Builder(this);
-            builder.setTitle("Element Selectors");
+            builder.setTitle("Element Selectors - " + elementName);
             
             String message = "Recommended: " + recommended + "\n\n";
-            if (!css.isEmpty()) {
+            if (!css.isEmpty() && !css.equals("error")) {
                 message += "CSS Selector: " + css + "\n\n";
             }
-            if (!xpath.isEmpty()) {
+            if (!xpath.isEmpty() && !xpath.equals("error")) {
                 message += "XPath Selector: " + xpath;
             }
             
@@ -517,13 +699,13 @@ public class WebViewActivity extends AppCompatActivity {
                 copyToClipboard("Recommended Selector", recommended);
             });
             
-            if (!css.isEmpty()) {
+            if (!css.isEmpty() && !css.equals("error")) {
                 builder.setNeutralButton("Copy CSS", (dialog, which) -> {
                     copyToClipboard("CSS Selector", css);
                 });
             }
             
-            if (!xpath.isEmpty()) {
+            if (!xpath.isEmpty() && !xpath.equals("error")) {
                 builder.setNegativeButton("Copy XPath", (dialog, which) -> {
                     copyToClipboard("XPath Selector", xpath);
                 });
@@ -532,7 +714,7 @@ public class WebViewActivity extends AppCompatActivity {
             builder.show();
         } catch (Exception e) {
             Log.e(TAG, "Error showing selector dialog", e);
-            Toast.makeText(this, "Error showing selector dialog", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Error showing selector dialog: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
     
@@ -551,7 +733,22 @@ public class WebViewActivity extends AppCompatActivity {
     @Override
     public void onBackPressed() {
         try {
-            if (webView != null && webView.canGoBack()) {
+            if (isRecordingMacro) {
+                // Ask user if they want to stop recording
+                AlertDialog.Builder builder = new AlertDialog.Builder(this);
+                builder.setTitle("Stop Recording?");
+                builder.setMessage("Macro recording is in progress. Do you want to stop and save?");
+                builder.setPositiveButton("Stop & Save", (dialog, which) -> {
+                    stopMacroRecording();
+                    if (webView != null && webView.canGoBack()) {
+                        webView.goBack();
+                    } else {
+                        super.onBackPressed();
+                    }
+                });
+                builder.setNegativeButton("Continue Recording", null);
+                builder.show();
+            } else if (webView != null && webView.canGoBack()) {
                 webView.goBack();
             } else {
                 super.onBackPressed();
@@ -567,6 +764,9 @@ public class WebViewActivity extends AppCompatActivity {
         try {
             if (longPressHandler != null && longPressRunnable != null) {
                 longPressHandler.removeCallbacks(longPressRunnable);
+            }
+            if (macroTimer != null) {
+                macroTimer.stop();
             }
             if (webView != null) {
                 webView.removeJavascriptInterface("Android");
