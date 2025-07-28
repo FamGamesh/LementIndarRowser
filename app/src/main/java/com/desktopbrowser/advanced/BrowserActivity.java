@@ -1,8 +1,10 @@
 package com.desktopbrowser.advanced;
 
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Environment;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -215,7 +217,10 @@ public class BrowserActivity extends AppCompatActivity {
         
         webView.setWebViewClient(new AdvancedDesktopWebViewClient());
         webView.setWebChromeClient(new AdvancedWebChromeClient());
-        webView.setDownloadListener(new AdvancedDownloadListener());
+        webView.setDownloadListener(new IntelligentDownloadListener());
+        
+        // INTELLIGENT LONG PRESS CONTEXT MENU
+        setupIntelligentLongPressMenu();
         
         // Custom zoom and scroll setup
         setupCustomZoomControls();
@@ -288,7 +293,257 @@ public class BrowserActivity extends AppCompatActivity {
         }, 100);
     }
     
-    private void setupCustomZoomControls() {
+    // INTELLIGENT LONG PRESS CONTEXT MENU SETUP
+    private void setupIntelligentLongPressMenu() {
+        webView.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View v) {
+                WebView.HitTestResult hitTestResult = webView.getHitTestResult();
+                if (hitTestResult != null) {
+                    showIntelligentContextMenu(hitTestResult);
+                    return true;
+                }
+                return false;
+            }
+        });
+        
+        Log.d(TAG, "🎯 Intelligent long press context menu enabled");
+    }
+    
+    // INTELLIGENT CONTEXT MENU DISPLAY
+    private void showIntelligentContextMenu(WebView.HitTestResult hitTestResult) {
+        int type = hitTestResult.getType();
+        String extra = hitTestResult.getExtra();
+        
+        Log.d(TAG, "🎯 Long press detected - Type: " + type + ", Extra: " + extra);
+        
+        if (extra == null) return;
+        
+        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
+        
+        java.util.List<String> options = new java.util.ArrayList<>();
+        java.util.List<Runnable> actions = new java.util.ArrayList<>();
+        
+        switch (type) {
+            case WebView.HitTestResult.IMAGE_TYPE:
+            case WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE:
+                builder.setTitle("🖼️ Image Options");
+                
+                // Download Image
+                options.add("📥 Download Image");
+                actions.add(() -> downloadFile(extra, getIntelligentFileName(extra, "image")));
+                
+                // Copy Image Link
+                options.add("🔗 Copy Image Link");
+                actions.add(() -> copyToClipboard(extra, "Image link copied"));
+                
+                // Share Image Link
+                options.add("🔄 Share Image Link");
+                actions.add(() -> shareLink(extra, "Image"));
+                
+                break;
+                
+            case WebView.HitTestResult.ANCHOR_TYPE:
+            case WebView.HitTestResult.SRC_ANCHOR_TYPE:
+                builder.setTitle("🔗 Link Options");
+                
+                // Copy Link
+                options.add("🔗 Copy Link");
+                actions.add(() -> copyToClipboard(extra, "Link copied"));
+                
+                // Share Link
+                options.add("🔄 Share Link"); 
+                actions.add(() -> shareLink(extra, "Link"));
+                
+                // Download Link (if it looks like a file)
+                if (isDownloadableLink(extra)) {
+                    options.add("📥 Download File");
+                    actions.add(() -> downloadFile(extra, getIntelligentFileName(extra, "file")));
+                }
+                
+                break;
+                
+            default:
+                // General page options
+                builder.setTitle("📄 Page Options");
+                
+                // Print Page
+                options.add("🖨️ Print Page");
+                actions.add(this::printPage);
+                
+                // Copy Page Link
+                options.add("🔗 Copy Page Link");
+                actions.add(() -> copyToClipboard(webView.getUrl(), "Page link copied"));
+                
+                // Share Page
+                options.add("🔄 Share Page");
+                actions.add(() -> shareLink(webView.getUrl(), "Page"));
+                
+                break;
+        }
+        
+        if (options.isEmpty()) return;
+        
+        // Add Copy Link Text option for all types
+        options.add("📝 Copy Link Text");
+        actions.add(() -> copyLinkText(extra));
+        
+        String[] optionsArray = options.toArray(new String[0]);
+        
+        builder.setItems(optionsArray, (dialog, which) -> {
+            try {
+                actions.get(which).run();
+            } catch (Exception e) {
+                Log.e(TAG, "💥 Error executing context menu action", e);
+                Toast.makeText(BrowserActivity.this, "Action failed", Toast.LENGTH_SHORT).show();
+            }
+        });
+        
+        builder.setNegativeButton("Cancel", null);
+        builder.show();
+    }
+    
+    // INTELLIGENT FILE NAME GENERATION
+    private String getIntelligentFileName(String url, String type) {
+        try {
+            // Extract filename from URL
+            String filename = url.substring(url.lastIndexOf('/') + 1);
+            
+            // Remove query parameters
+            if (filename.contains("?")) {
+                filename = filename.substring(0, filename.indexOf("?"));
+            }
+            
+            // If no extension or filename, generate one
+            if (filename.isEmpty() || !filename.contains(".")) {
+                String extension = "";
+                
+                // Detect file type from URL patterns
+                if (url.contains(".jpg") || url.contains(".jpeg")) extension = ".jpg";
+                else if (url.contains(".png")) extension = ".png";
+                else if (url.contains(".gif")) extension = ".gif";
+                else if (url.contains(".pdf")) extension = ".pdf";
+                else if (url.contains(".mp4")) extension = ".mp4";
+                else if (url.contains(".mp3")) extension = ".mp3";
+                else if (url.contains(".zip")) extension = ".zip";
+                else {
+                    // Default based on type
+                    switch (type) {
+                        case "image": extension = ".jpg"; break;
+                        case "video": extension = ".mp4"; break;
+                        case "audio": extension = ".mp3"; break;
+                        default: extension = ".file"; break;
+                    }
+                }
+                
+                filename = "download_" + System.currentTimeMillis() + extension;
+            }
+            
+            Log.d(TAG, "🏷️ Generated intelligent filename: " + filename);
+            return filename;
+            
+        } catch (Exception e) {
+            Log.e(TAG, "💥 Error generating filename", e);
+            return "download_" + System.currentTimeMillis() + ".file";
+        }
+    }
+    
+    // CHECK IF LINK IS DOWNLOADABLE
+    private boolean isDownloadableLink(String url) {
+        if (url == null) return false;
+        
+        String lowerUrl = url.toLowerCase();
+        return lowerUrl.contains(".pdf") || lowerUrl.contains(".zip") || 
+               lowerUrl.contains(".rar") || lowerUrl.contains(".mp4") ||
+               lowerUrl.contains(".mp3") || lowerUrl.contains(".jpg") ||
+               lowerUrl.contains(".png") || lowerUrl.contains(".gif") ||
+               lowerUrl.contains(".doc") || lowerUrl.contains(".apk") ||
+               lowerUrl.contains("download");
+    }
+    
+    // COPY TO CLIPBOARD
+    private void copyToClipboard(String text, String message) {
+        android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        android.content.ClipData clip = android.content.ClipData.newPlainText("Browser", text);
+        clipboard.setPrimaryClip(clip);
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+        Log.d(TAG, "📋 Copied to clipboard: " + text);
+    }
+    
+    // SHARE LINK
+    private void shareLink(String url, String type) {
+        Intent shareIntent = new Intent(Intent.ACTION_SEND);
+        shareIntent.setType("text/plain");
+        shareIntent.putExtra(Intent.EXTRA_TEXT, url);
+        shareIntent.putExtra(Intent.EXTRA_SUBJECT, type + " from Real Desktop Browser");
+        startActivity(Intent.createChooser(shareIntent, "Share " + type));
+        Log.d(TAG, "🔄 Sharing link: " + url);
+    }
+    
+    // COPY LINK TEXT
+    private void copyLinkText(String url) {
+        // Inject JavaScript to get link text
+        String script = 
+            "javascript:(function() {" +
+            "  var links = document.getElementsByTagName('a');" +
+            "  for (var i = 0; i < links.length; i++) {" +
+            "    if (links[i].href === '" + url + "') {" +
+            "      return links[i].innerText || links[i].textContent;" +
+            "    }" +
+            "  }" +
+            "  return 'Link';" +
+            "})()";
+        
+        webView.evaluateJavascript(script, result -> {
+            String linkText = result != null ? result.replace("\"", "") : "Link";
+            copyToClipboard(linkText, "Link text copied");
+        });
+    }
+    
+    // PRINT PAGE
+    private void printPage() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.KITKAT) {
+            android.print.PrintManager printManager = (android.print.PrintManager) getSystemService(Context.PRINT_SERVICE);
+            String jobName = "Real Desktop Browser - " + webView.getTitle();
+            android.print.PrintDocumentAdapter printAdapter = webView.createPrintDocumentAdapter(jobName);
+            printManager.print(jobName, printAdapter, new android.print.PrintAttributes.Builder().build());
+            Log.d(TAG, "🖨️ Print job started: " + jobName);
+        } else {
+            Toast.makeText(this, "Print feature requires Android 4.4+", Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    // DOWNLOAD FILE
+    private void downloadFile(String url, String filename) {
+        try {
+            Log.d(TAG, "📥 Starting intelligent download: " + filename);
+            
+            // Create download request
+            android.app.DownloadManager.Request request = new android.app.DownloadManager.Request(Uri.parse(url));
+            request.setDescription("Downloaded by Real Desktop Browser");
+            request.setTitle(filename);
+            request.allowScanningByMediaScanner();
+            request.setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            
+            // Set download destination
+            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename);
+            
+            // Start download
+            android.app.DownloadManager downloadManager = (android.app.DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+            long downloadId = downloadManager.enqueue(request);
+            
+            // Track download in our system
+            String filepath = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS) + "/" + filename;
+            DownloadManager.getInstance(this).addDownload(url, filename, filepath);
+            
+            Toast.makeText(this, "📥 Downloading: " + filename, Toast.LENGTH_SHORT).show();
+            Log.d(TAG, "✅ Download started - ID: " + downloadId + ", File: " + filename);
+            
+        } catch (Exception e) {
+            Log.e(TAG, "💥 Error starting download", e);
+            Toast.makeText(this, "Download failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
         // Custom zoom implementation
         webView.getSettings().setSupportZoom(true);
         webView.getSettings().setBuiltInZoomControls(true);
@@ -932,15 +1187,38 @@ public class BrowserActivity extends AppCompatActivity {
         }
     }
     
-    private class AdvancedDownloadListener implements DownloadListener {
+    private class IntelligentDownloadListener implements DownloadListener {
         @Override
         public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {
             try {
-                Intent intent = new Intent(Intent.ACTION_VIEW);
-                intent.setData(Uri.parse(url));
-                startActivity(intent);
+                Log.d(TAG, "🎯 Intelligent download triggered for: " + url);
+                
+                // Extract filename intelligently
+                String filename = getIntelligentFileName(url, "file");
+                
+                // If we can get better filename from contentDisposition, use it
+                if (contentDisposition != null && contentDisposition.contains("filename=")) {
+                    try {
+                        String extractedName = contentDisposition.substring(contentDisposition.indexOf("filename=") + 9);
+                        if (extractedName.startsWith("\"")) {
+                            extractedName = extractedName.substring(1, extractedName.indexOf("\"", 1));
+                        }
+                        if (!extractedName.isEmpty()) {
+                            filename = extractedName;
+                        }
+                    } catch (Exception e) {
+                        Log.w(TAG, "Could not extract filename from contentDisposition", e);
+                    }
+                }
+                
+                Log.d(TAG, "📁 Final filename: " + filename);
+                
+                // Start download with intelligent tracking
+                downloadFile(url, filename);
+                
             } catch (Exception e) {
-                Toast.makeText(BrowserActivity.this, "Cannot download: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                Log.e(TAG, "💥 Error in intelligent download listener", e);
+                Toast.makeText(BrowserActivity.this, "Download failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
             }
         }
     }

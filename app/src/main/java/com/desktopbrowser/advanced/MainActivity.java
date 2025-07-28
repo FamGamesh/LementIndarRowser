@@ -86,9 +86,10 @@ public class MainActivity extends AppCompatActivity {
             return false;
         });
         
-        // Navigation buttons
+        // Navigation buttons with professional design
         findViewById(R.id.btn_history).setOnClickListener(v -> openHistory());
         findViewById(R.id.btn_bookmarks).setOnClickListener(v -> openBookmarks());
+        findViewById(R.id.btn_downloads).setOnClickListener(v -> openDownloads());
         findViewById(R.id.btn_settings).setOnClickListener(v -> openSettings());
     }
     
@@ -165,52 +166,32 @@ public class MainActivity extends AppCompatActivity {
         
         // Add click listener to button - ALWAYS show interstitial ad first
         button.setOnClickListener(v -> {
-            android.util.Log.d("MainActivity", "Quick access button clicked: " + name + " -> " + finalUrl);
-            // ALWAYS show interstitial ad before opening quick access sites
-            try {
-                adManager.showQuickAccessAd(MainActivity.this, () -> {
-                    if (finalUrl != null && !finalUrl.isEmpty()) {
-                        android.util.Log.d("MainActivity", "Opening URL after ad: " + finalUrl);
-                        openUrl(finalUrl);
-                    } else {
-                        Toast.makeText(MainActivity.this, "URL not available", Toast.LENGTH_SHORT).show();
-                    }
-                });
-            } catch (Exception e) {
-                android.util.Log.e("MainActivity", "Error showing quick access ad", e);
-                // Fallback: open URL directly if ad fails
+            android.util.Log.d("MainActivity", "🎯 Quick access button clicked: " + name + " -> " + finalUrl);
+            // ALWAYS show interstitial ad before opening quick access sites using intelligent system
+            adManager.showQuickAccessAd(MainActivity.this, () -> {
                 if (finalUrl != null && !finalUrl.isEmpty()) {
+                    android.util.Log.d("MainActivity", "✅ Opening URL after ad: " + finalUrl);
                     openUrl(finalUrl);
                 } else {
                     Toast.makeText(MainActivity.this, "URL not available", Toast.LENGTH_SHORT).show();
                 }
-            }
+            });
         });
         
         card.addView(button);
         
         // Add click listener to card - ALWAYS show interstitial ad first
         card.setOnClickListener(v -> {
-            android.util.Log.d("MainActivity", "Quick access card clicked: " + name + " -> " + finalUrl);
-            // ALWAYS show interstitial ad before opening quick access sites
-            try {
-                adManager.showQuickAccessAd(MainActivity.this, () -> {
-                    if (finalUrl != null && !finalUrl.isEmpty()) {
-                        android.util.Log.d("MainActivity", "Opening URL after ad: " + finalUrl);
-                        openUrl(finalUrl);
-                    } else {
-                        Toast.makeText(MainActivity.this, "URL not available", Toast.LENGTH_SHORT).show();
-                    }
-                });
-            } catch (Exception e) {
-                android.util.Log.e("MainActivity", "Error showing quick access ad", e);
-                // Fallback: open URL directly if ad fails
+            android.util.Log.d("MainActivity", "🎯 Quick access card clicked: " + name + " -> " + finalUrl);
+            // ALWAYS show interstitial ad before opening quick access sites using intelligent system
+            adManager.showQuickAccessAd(MainActivity.this, () -> {
                 if (finalUrl != null && !finalUrl.isEmpty()) {
+                    android.util.Log.d("MainActivity", "✅ Opening URL after ad: " + finalUrl);
                     openUrl(finalUrl);
                 } else {
                     Toast.makeText(MainActivity.this, "URL not available", Toast.LENGTH_SHORT).show();
                 }
-            }
+            });
         });
         
         GridLayout.LayoutParams params = new GridLayout.LayoutParams();
@@ -293,6 +274,16 @@ public class MainActivity extends AppCompatActivity {
     private void openBookmarks() {
         Intent intent = new Intent(this, BookmarksActivity.class);
         startActivity(intent);
+    }
+    
+    private void openDownloads() {
+        android.util.Log.d("MainActivity", "🎯 Downloads section clicked - showing interstitial ad");
+        // ALWAYS show interstitial ad before opening downloads section
+        adManager.showDownloadsAd(this, () -> {
+            android.util.Log.d("MainActivity", "✅ Interstitial ad completed - opening downloads");
+            Intent intent = new Intent(this, DownloadsActivity.class);
+            startActivity(intent);
+        });
     }
     
     private void setupSessionButtons() {
@@ -389,17 +380,11 @@ public class MainActivity extends AppCompatActivity {
         }
         
         // ALWAYS show interstitial ad before opening recent session (regardless of premium status)
-        android.util.Log.d("MainActivity", "Showing interstitial ad for Recent Session");
-        try {
-            adManager.showRecentSessionAd(this, () -> {
-                android.util.Log.d("MainActivity", "Interstitial ad completed - restoring recent session");
-                restoreRecentSession();
-            });
-        } catch (Exception e) {
-            android.util.Log.e("MainActivity", "Error showing recent session ad", e);
-            // Fallback if ad fails
+        android.util.Log.d("MainActivity", "🎯 Showing interstitial ad for Recent Session");
+        adManager.showRecentSessionAd(this, () -> {
+            android.util.Log.d("MainActivity", "✅ Interstitial ad completed - restoring recent session");
             restoreRecentSession();
-        }
+        });
     }
     
     private void restoreLastSession() {
