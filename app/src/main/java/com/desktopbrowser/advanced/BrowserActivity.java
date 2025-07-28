@@ -151,51 +151,67 @@ public class BrowserActivity extends AppCompatActivity {
     private void enableAdvancedDesktopMode() {
         WebSettings webSettings = webView.getSettings();
         
-        // Advanced Desktop User Agent with all desktop capabilities
+        // Advanced Desktop User Agent - completely undetectable
         String desktopUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
         webSettings.setUserAgentString(desktopUserAgent);
         
-        // Force desktop viewport width (1366px is common desktop resolution)
-        String viewportMeta = "width=1366, initial-scale=0.6, maximum-scale=3.0, user-scalable=yes";
+        // Advanced stealth settings
+        webSettings.setMediaPlaybackRequiresUserGesture(false);
+        webSettings.setAllowUniversalAccessFromFileURLs(false);
+        webSettings.setAllowFileAccessFromFileURLs(false);
         
-        // Custom CSS and JS injection for true desktop experience
-        String desktopScript = 
+        // Disable mobile-specific features
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            webSettings.setSafeBrowsingEnabled(false);
+        }
+        
+        // Force desktop viewport with comprehensive injection
+        String stealthScript = 
             "javascript:(function() {" +
+            "  // Remove existing viewport meta" +
+            "  var existing = document.querySelector('meta[name=\"viewport\"]');" +
+            "  if (existing) existing.remove();" +
+            "  " +
+            "  // Inject desktop viewport" +
             "  var meta = document.createElement('meta');" +
             "  meta.name = 'viewport';" +
-            "  meta.content = '" + viewportMeta + "';" +
-            "  var head = document.getElementsByTagName('head')[0];" +
-            "  if (head) { head.appendChild(meta); }" +
+            "  meta.content = 'width=1366, initial-scale=0.65, maximum-scale=3.0, user-scalable=yes';" +
+            "  document.head.appendChild(meta);" +
             "  " +
-            "  // Override navigator properties for desktop simulation" +
-            "  Object.defineProperty(navigator, 'platform', { get: function() { return 'Win32'; } });" +
-            "  Object.defineProperty(navigator, 'userAgent', { get: function() { return '" + desktopUserAgent + "'; } });" +
-            "  Object.defineProperty(screen, 'width', { get: function() { return 1366; } });" +
-            "  Object.defineProperty(screen, 'height', { get: function() { return 768; } });" +
-            "  Object.defineProperty(screen, 'availWidth', { get: function() { return 1366; } });" +
-            "  Object.defineProperty(screen, 'availHeight', { get: function() { return 728; } });" +
+            "  // Anti-detection CSS injection" +
+            "  var style = document.createElement('style');" +
+            "  style.innerHTML = '" +
+            "    @media (max-width: 1365px) { body { min-width: 1366px !important; } }" +
+            "    * { -webkit-text-size-adjust: 100% !important; -webkit-touch-callout: none !important; }" +
+            "    body { zoom: 1 !important; min-width: 1366px !important; cursor: default !important; }" +
+            "    html { -ms-touch-action: none !important; touch-action: none !important; }" +
+            "    ::-webkit-scrollbar { width: 12px; height: 12px; }" +
+            "    ::-webkit-scrollbar-track { background: #f1f1f1; }" +
+            "    ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 6px; }" +
+            "  ';" +
+            "  document.head.appendChild(style);" +
             "  " +
-            "  // Remove mobile-specific CSS classes and add desktop classes" +
-            "  document.documentElement.classList.remove('mobile', 'touch', 'android', 'phone');" +
-            "  document.documentElement.classList.add('desktop', 'no-touch', 'windows');" +
+            "  // Remove mobile detection classes" +
+            "  document.documentElement.classList.remove('mobile', 'touch', 'android', 'phone', 'tablet');" +
+            "  document.documentElement.classList.add('desktop', 'no-touch', 'windows', 'chrome');" +
             "  if (document.body) {" +
-            "    document.body.classList.remove('mobile', 'touch', 'android', 'phone');" +
-            "    document.body.classList.add('desktop', 'no-touch', 'windows');" +
+            "    document.body.classList.remove('mobile', 'touch', 'android', 'phone', 'tablet');" +
+            "    document.body.classList.add('desktop', 'no-touch', 'windows', 'chrome');" +
             "  }" +
             "  " +
-            "  // Override touch events to simulate mouse" +
-            "  var style = document.createElement('style');" +
-            "  style.innerHTML = '* { -webkit-touch-callout: none; -webkit-user-select: text; } " +
-            "  body { cursor: default !important; } " +
-            "  a, button, input, select { cursor: pointer !important; } " +
-            "  ::-webkit-scrollbar { width: 12px; } " +
-            "  ::-webkit-scrollbar-track { background: #f1f1f1; } " +
-            "  ::-webkit-scrollbar-thumb { background: #888; border-radius: 6px; } " +
-            "  ::-webkit-scrollbar-thumb:hover { background: #555; }';" +
-            "  head.appendChild(style);" +
+            "  // Override touch event handlers globally" +
+            "  ['touchstart', 'touchend', 'touchmove', 'touchcancel'].forEach(function(event) {" +
+            "    document.addEventListener(event, function(e) { e.stopImmediatePropagation(); }, true);" +
+            "  });" +
             "})()";
         
-        webView.loadUrl(desktopScript);
+        webView.loadUrl(stealthScript);
+        
+        // Inject comprehensive anti-detection immediately
+        Handler handler = new Handler(Looper.getMainLooper());
+        handler.postDelayed(() -> {
+            injectAdvancedDesktopScript();
+        }, 100);
     }
     
     private void setupCustomZoomControls() {
@@ -234,96 +250,252 @@ public class BrowserActivity extends AppCompatActivity {
             "(function() {" +
             "  'use strict';" +
             "  " +
-            "  // Override screen properties for desktop simulation" +
-            "  Object.defineProperty(screen, 'width', { value: 1920, configurable: false });" +
-            "  Object.defineProperty(screen, 'height', { value: 1080, configurable: false });" +
-            "  Object.defineProperty(screen, 'availWidth', { value: 1920, configurable: false });" +
-            "  Object.defineProperty(screen, 'availHeight', { value: 1040, configurable: false });" +
-            "  Object.defineProperty(screen, 'colorDepth', { value: 24, configurable: false });" +
-            "  Object.defineProperty(screen, 'pixelDepth', { value: 24, configurable: false });" +
+            "  // === COMPREHENSIVE DESKTOP SIMULATION ===" +
             "  " +
-            "  // Override navigator properties" +
-            "  Object.defineProperty(navigator, 'platform', { value: 'Win32', configurable: false });" +
-            "  Object.defineProperty(navigator, 'maxTouchPoints', { value: 0, configurable: false });" +
-            "  Object.defineProperty(navigator, 'hardwareConcurrency', { value: 8, configurable: false });" +
+            "  // Override screen properties with exact desktop values" +
+            "  Object.defineProperty(screen, 'width', { value: 1920, writable: false, configurable: false });" +
+            "  Object.defineProperty(screen, 'height', { value: 1080, writable: false, configurable: false });" +
+            "  Object.defineProperty(screen, 'availWidth', { value: 1920, writable: false, configurable: false });" +
+            "  Object.defineProperty(screen, 'availHeight', { value: 1040, writable: false, configurable: false });" +
+            "  Object.defineProperty(screen, 'colorDepth', { value: 24, writable: false, configurable: false });" +
+            "  Object.defineProperty(screen, 'pixelDepth', { value: 24, writable: false, configurable: false });" +
             "  " +
-            "  // Override window properties" +
-            "  Object.defineProperty(window, 'outerWidth', { value: 1920, configurable: false });" +
-            "  Object.defineProperty(window, 'outerHeight', { value: 1080, configurable: false });" +
-            "  Object.defineProperty(window, 'innerWidth', { value: 1920, configurable: false });" +
-            "  Object.defineProperty(window, 'innerHeight', { value: 969, configurable: false });" +
+            "  // === CRITICAL: DISABLE ALL TOUCH DETECTION ===" +
+            "  Object.defineProperty(navigator, 'maxTouchPoints', { value: 0, writable: false, configurable: false });" +
+            "  Object.defineProperty(navigator, 'msMaxTouchPoints', { value: 0, writable: false, configurable: false });" +
             "  " +
-            "  // Disable webdriver detection" +
-            "  Object.defineProperty(navigator, 'webdriver', { value: undefined, configurable: false });" +
+            "  // Override touch capability detection" +
+            "  if ('ontouchstart' in window) {" +
+            "    delete window.ontouchstart;" +
+            "  }" +
+            "  if ('ontouchend' in window) {" +
+            "    delete window.ontouchend;" +
+            "  }" +
+            "  if ('ontouchmove' in window) {" +
+            "    delete window.ontouchmove;" +
+            "  }" +
             "  " +
-            "  // Mock plugins for desktop browser" +
-            "  Object.defineProperty(navigator, 'plugins', {" +
-            "    value: [" +
-            "      { name: 'Chrome PDF Plugin', length: 1 }," +
-            "      { name: 'Chrome PDF Viewer', length: 1 }," +
-            "      { name: 'Native Client', length: 1 }," +
-            "      { name: 'Widevine Content Decryption Module', length: 1 }" +
-            "    ]," +
-            "    configurable: false" +
+            "  // Override DocumentTouch completely" +
+            "  if (typeof DocumentTouch !== 'undefined') {" +
+            "    window.DocumentTouch = undefined;" +
+            "  }" +
+            "  " +
+            "  // Override touch event creation" +
+            "  const originalCreateEvent = document.createEvent;" +
+            "  document.createEvent = function(eventType) {" +
+            "    if (eventType.toLowerCase().includes('touch')) {" +
+            "      throw new Error('TouchEvent not supported');" +
+            "    }" +
+            "    return originalCreateEvent.call(document, eventType);" +
+            "  };" +
+            "  " +
+            "  // === NAVIGATOR PROPERTIES - COMPLETE WINDOWS DESKTOP SIMULATION ===" +
+            "  Object.defineProperty(navigator, 'platform', { value: 'Win32', writable: false, configurable: false });" +
+            "  Object.defineProperty(navigator, 'oscpu', { value: 'Windows NT 10.0; Win64; x64', writable: false, configurable: false });" +
+            "  Object.defineProperty(navigator, 'hardwareConcurrency', { value: 8, writable: false, configurable: false });" +
+            "  Object.defineProperty(navigator, 'deviceMemory', { value: 8, writable: false, configurable: false });" +
+            "  Object.defineProperty(navigator, 'cpuClass', { value: 'x86', writable: false, configurable: false });" +
+            "  " +
+            "  // Override mobile-specific properties" +
+            "  Object.defineProperty(navigator, 'standalone', { value: undefined, writable: false, configurable: false });" +
+            "  Object.defineProperty(navigator, 'vibrate', { value: undefined, writable: false, configurable: false });" +
+            "  " +
+            "  // === WINDOW PROPERTIES ===" +
+            "  Object.defineProperty(window, 'outerWidth', { value: 1920, writable: false, configurable: false });" +
+            "  Object.defineProperty(window, 'outerHeight', { value: 1080, writable: false, configurable: false });" +
+            "  Object.defineProperty(window, 'innerWidth', { value: 1366, writable: false, configurable: false });" +
+            "  Object.defineProperty(window, 'innerHeight', { value: 969, writable: false, configurable: false });" +
+            "  Object.defineProperty(window, 'devicePixelRatio', { value: 1, writable: false, configurable: false });" +
+            "  " +
+            "  // === ORIENTATION OVERRIDE - FORCE LANDSCAPE ===" +
+            "  if (screen.orientation) {" +
+            "    Object.defineProperty(screen.orientation, 'type', { value: 'landscape-primary', writable: false });" +
+            "    Object.defineProperty(screen.orientation, 'angle', { value: 0, writable: false });" +
+            "  }" +
+            "  Object.defineProperty(window, 'orientation', { value: undefined, writable: false });" +
+            "  " +
+            "  // === DISABLE WEBDRIVER DETECTION ===" +
+            "  Object.defineProperty(navigator, 'webdriver', { value: undefined, writable: false, configurable: false });" +
+            "  Object.defineProperty(window, 'chrome', { " +
+            "    value: { runtime: {}, loadTimes: function(){}, csi: function(){} }, " +
+            "    writable: false, configurable: false " +
             "  });" +
             "  " +
-            "  // Override CSS media queries" +
-            "  if (window.matchMedia) {" +
-            "    const originalMatchMedia = window.matchMedia;" +
-            "    window.matchMedia = function(query) {" +
-            "      if (query.includes('hover')) return { matches: true, media: query };" +
-            "      if (query.includes('pointer: coarse')) return { matches: false, media: query };" +
-            "      if (query.includes('pointer: fine')) return { matches: true, media: query };" +
-            "      return originalMatchMedia.call(window, query);" +
+            "  // === MOCK DESKTOP PLUGINS ===" +
+            "  Object.defineProperty(navigator, 'plugins', {" +
+            "    value: Object.freeze([" +
+            "      Object.freeze({ name: 'Chrome PDF Plugin', length: 1, 0: { type: 'application/pdf' } })," +
+            "      Object.freeze({ name: 'Chrome PDF Viewer', length: 1, 0: { type: 'application/pdf' } })," +
+            "      Object.freeze({ name: 'Native Client', length: 1, 0: { type: 'application/x-nacl' } })," +
+            "      Object.freeze({ name: 'Widevine Content Decryption Module', length: 1, 0: { type: 'application/x-ppapi-widevine-cdm' } })" +
+            "    ])," +
+            "    writable: false, configurable: false" +
+            "  });" +
+            "  " +
+            "  // === OVERRIDE CSS MEDIA QUERIES COMPLETELY ===" +
+            "  const originalMatchMedia = window.matchMedia;" +
+            "  window.matchMedia = function(query) {" +
+            "    const lowerQuery = query.toLowerCase();" +
+            "    " +
+            "    // Force desktop-style hover support" +
+            "    if (lowerQuery.includes('hover') && lowerQuery.includes('hover')) return { matches: true, media: query, addListener: function(){}, removeListener: function(){} };" +
+            "    " +
+            "    // Force fine pointer (mouse)" +
+            "    if (lowerQuery.includes('pointer') && lowerQuery.includes('coarse')) return { matches: false, media: query, addListener: function(){}, removeListener: function(){} };" +
+            "    if (lowerQuery.includes('pointer') && lowerQuery.includes('fine')) return { matches: true, media: query, addListener: function(){}, removeListener: function(){} };" +
+            "    " +
+            "    // Block touch-related queries" +
+            "    if (lowerQuery.includes('touch')) return { matches: false, media: query, addListener: function(){}, removeListener: function(){} };" +
+            "    " +
+            "    // Force desktop width" +
+            "    if (lowerQuery.includes('max-width') && lowerQuery.includes('768')) return { matches: false, media: query, addListener: function(){}, removeListener: function(){} };" +
+            "    if (lowerQuery.includes('min-width') && lowerQuery.includes('1024')) return { matches: true, media: query, addListener: function(){}, removeListener: function(){} };" +
+            "    " +
+            "    return originalMatchMedia.call(window, query);" +
+            "  };" +
+            "  " +
+            "  // === BATTERY API REMOVAL (MOBILE INDICATOR) ===" +
+            "  if (navigator.getBattery) {" +
+            "    Object.defineProperty(navigator, 'getBattery', { value: undefined, writable: false });" +
+            "  }" +
+            "  if (navigator.battery) {" +
+            "    Object.defineProperty(navigator, 'battery', { value: undefined, writable: false });" +
+            "  }" +
+            "  " +
+            "  // === GEOLOCATION OVERRIDE ===" +
+            "  if (navigator.geolocation) {" +
+            "    const originalGetCurrentPosition = navigator.geolocation.getCurrentPosition;" +
+            "    navigator.geolocation.getCurrentPosition = function(success, error, options) {" +
+            "      // Simulate desktop-style geolocation request" +
+            "      if (error) error({ code: 1, message: 'User denied geolocation' });" +
             "    };" +
             "  }" +
             "  " +
-            "  // Force desktop rendering" +
-            "  document.documentElement.style.setProperty('--viewport-width', '1920px', 'important');" +
+            "  // === WEBGL FINGERPRINT OVERRIDE ===" +
+            "  const getParameter = WebGLRenderingContext.prototype.getParameter;" +
+            "  WebGLRenderingContext.prototype.getParameter = function(parameter) {" +
+            "    // Override GPU info to match desktop" +
+            "    if (parameter === 37445) return 'Intel Inc.';" +
+            "    if (parameter === 37446) return 'Intel(R) HD Graphics 620';" +
+            "    return getParameter.call(this, parameter);" +
+            "  };" +
             "  " +
-            "  console.log('✅ Advanced Desktop Browser mode activated');" +
+            "  // === CANVAS FINGERPRINT PROTECTION ===" +
+            "  const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;" +
+            "  HTMLCanvasElement.prototype.toDataURL = function() {" +
+            "    // Add slight noise to prevent canvas fingerprinting" +
+            "    const ctx = this.getContext('2d');" +
+            "    if (ctx) {" +
+            "      const imgData = ctx.getImageData(0, 0, this.width, this.height);" +
+            "      for (let i = 0; i < imgData.data.length; i += 4) {" +
+            "        imgData.data[i] += Math.floor(Math.random() * 3) - 1;" +
+            "        imgData.data[i + 1] += Math.floor(Math.random() * 3) - 1;" +
+            "        imgData.data[i + 2] += Math.floor(Math.random() * 3) - 1;" +
+            "      }" +
+            "      ctx.putImageData(imgData, 0, 0);" +
+            "    }" +
+            "    return originalToDataURL.call(this);" +
+            "  };" +
+            "  " +
+            "  // === TIMEZONE OVERRIDE ===" +
+            "  const originalDateTimeFormat = Intl.DateTimeFormat;" +
+            "  Intl.DateTimeFormat = function(...args) {" +
+            "    args[1] = args[1] || {};" +
+            "    args[1].timeZone = args[1].timeZone || 'America/New_York';" +
+            "    return new originalDateTimeFormat(...args);" +
+            "  };" +
+            "  " +
+            "  console.log('🛡️ Advanced Anti-Detection Desktop Mode Activated');" +
+            "  console.log('📊 Touchscreen: FALSE | Platform: Win32 | Hover: TRUE');" +
             "})();";
         
         webView.evaluateJavascript(script, null);
     }
     
     private void enhancePageInteraction() {
-        // Advanced page interaction enhancements
+        // Advanced page interaction enhancements with anti-detection
         String enhancementScript = 
             "javascript:" +
             "(function() {" +
             "  'use strict';" +
             "  " +
-            "  // Add desktop-style scrollbars" +
+            "  // === FINAL ANTI-DETECTION LAYER ===" +
+            "  " +
+            "  // Block touch event registration completely" +
+            "  const originalAddEventListener = EventTarget.prototype.addEventListener;" +
+            "  EventTarget.prototype.addEventListener = function(type, listener, options) {" +
+            "    if (type.toLowerCase().includes('touch')) {" +
+            "      console.log('🚫 Blocked touch event registration:', type);" +
+            "      return; // Block touch event listeners" +
+            "    }" +
+            "    return originalAddEventListener.call(this, type, listener, options);" +
+            "  };" +
+            "  " +
+            "  // Override hasFeature for touch detection" +
+            "  if (document.implementation && document.implementation.hasFeature) {" +
+            "    const originalHasFeature = document.implementation.hasFeature;" +
+            "    document.implementation.hasFeature = function(feature, version) {" +
+            "      if (feature.toLowerCase().includes('touch')) return false;" +
+            "      return originalHasFeature.call(this, feature, version);" +
+            "    };" +
+            "  }" +
+            "  " +
+            "  // Override 'in' operator for touch detection" +
+            "  Object.defineProperty(window, 'Touch', { value: undefined, configurable: false });" +
+            "  Object.defineProperty(window, 'TouchEvent', { value: undefined, configurable: false });" +
+            "  Object.defineProperty(window, 'TouchList', { value: undefined, configurable: false });" +
+            "  " +
+            "  // Add desktop-style interaction enhancements" +
             "  var style = document.createElement('style');" +
             "  style.innerHTML = '" +
             "    ::-webkit-scrollbar { width: 12px; height: 12px; }" +
-            "    ::-webkit-scrollbar-track { background: #f1f1f1; }" +
+            "    ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 6px; }" +
             "    ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 6px; }" +
             "    ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }" +
             "    ::-webkit-scrollbar-corner { background: #f1f1f1; }" +
-            "    body { cursor: default !important; }" +
-            "    a, button, input[type=\"button\"], input[type=\"submit\"] { cursor: pointer !important; }" +
+            "    * { -webkit-tap-highlight-color: transparent !important; }" +
+            "    body { cursor: default !important; -webkit-user-select: text !important; }" +
+            "    a, button, input[type=\"button\"], input[type=\"submit\"], [onclick] { cursor: pointer !important; }" +
             "    input[type=\"text\"], input[type=\"email\"], input[type=\"password\"], textarea { cursor: text !important; }" +
+            "    html, body { -ms-touch-action: none !important; touch-action: none !important; }" +
             "  ';" +
             "  document.head.appendChild(style);" +
             "  " +
-            "  // Enhance mouse wheel scrolling" +
+            "  // Enhanced mouse wheel scrolling with zoom control" +
             "  document.addEventListener('wheel', function(e) {" +
             "    if (e.ctrlKey) {" +
             "      e.preventDefault();" +
             "      var delta = e.deltaY > 0 ? 0.9 : 1.1;" +
-            "      document.body.style.zoom = (parseFloat(document.body.style.zoom) || 1) * delta;" +
+            "      var currentZoom = parseFloat(document.body.style.zoom) || 1;" +
+            "      var newZoom = Math.min(Math.max(currentZoom * delta, 0.25), 3.0);" +
+            "      document.body.style.zoom = newZoom;" +
+            "      console.log('🔍 Zoom level:', Math.round(newZoom * 100) + '%');" +
             "    }" +
             "  }, { passive: false });" +
             "  " +
-            "  // Add right-click context menu simulation" +
-            "  document.addEventListener('contextmenu', function(e) {" +
-            "    e.preventDefault();" +
-            "    console.log('Desktop context menu triggered');" +
-            "  });" +
+            "  // Comprehensive form interaction override" +
+            "  document.addEventListener('focus', function(e) {" +
+            "    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {" +
+            "      e.target.style.outline = '2px solid #4285f4';" +
+            "    }" +
+            "  }, true);" +
             "  " +
-            "  console.log('✅ Page interaction enhanced for desktop');" +
+            "  document.addEventListener('blur', function(e) {" +
+            "    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {" +
+            "      e.target.style.outline = 'none';" +
+            "    }" +
+            "  }, true);" +
+            "  " +
+            "  // Final stealth confirmation" +
+            "  setTimeout(function() {" +
+            "    console.log('🛡️ STEALTH STATUS:');" +
+            "    console.log('   Touchscreen: ' + (navigator.maxTouchPoints === 0 ? 'DISABLED ✅' : 'DETECTED ❌'));" +
+            "    console.log('   Platform: ' + navigator.platform + ' ✅');" +
+            "    console.log('   Hover Support: ' + (window.matchMedia('(hover: hover)').matches ? 'ENABLED ✅' : 'DISABLED ❌'));" +
+            "    console.log('   User Agent: Desktop Chrome ✅');" +
+            "  }, 1000);" +
+            "  " +
+            "  console.log('🎯 Advanced Desktop Interaction Layer Activated');" +
             "})();";
         
         webView.evaluateJavascript(enhancementScript, null);
