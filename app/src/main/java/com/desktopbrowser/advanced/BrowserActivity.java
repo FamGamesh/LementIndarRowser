@@ -111,6 +111,14 @@ public class BrowserActivity extends AppCompatActivity {
         webSettings.setSupportZoom(true);
         webSettings.setDefaultTextEncodingName("utf-8");
         
+        // CRITICAL: Set initial scale to make content appear desktop-sized
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+            webSettings.setDefaultZoom(WebSettings.ZoomDensity.FAR); // Desktop-like zoom
+        }
+        
+        // Force desktop viewport dimensions
+        webView.setInitialScale(50); // 50% initial scale to show full desktop layout
+        
         // Desktop viewport configuration - Force desktop layout
         webSettings.setLayoutAlgorithm(WebSettings.LayoutAlgorithm.NORMAL);
         webSettings.setMinimumFontSize(8);  // Smaller fonts like desktop
@@ -412,6 +420,84 @@ public class BrowserActivity extends AppCompatActivity {
         webView.evaluateJavascript(script, null);
     }
     
+    private void injectImmediateStealthScript() {
+        // CRITICAL: This script runs IMMEDIATELY when page starts loading
+        String immediateScript = 
+            "javascript:" +
+            "if (typeof window !== 'undefined') {" +
+            "  // INSTANT OVERRIDE - Must happen before any detection scripts" +
+            "  " +
+            "  // Override screen properties INSTANTLY" +
+            "  Object.defineProperty(screen, 'width', { value: 1920, writable: false, configurable: false });" +
+            "  Object.defineProperty(screen, 'height', { value: 1080, writable: false, configurable: false });" +
+            "  Object.defineProperty(screen, 'availWidth', { value: 1920, writable: false, configurable: false });" +
+            "  Object.defineProperty(screen, 'availHeight', { value: 1040, writable: false, configurable: false });" +
+            "  Object.defineProperty(screen, 'colorDepth', { value: 24, writable: false, configurable: false });" +
+            "  Object.defineProperty(screen, 'pixelDepth', { value: 24, writable: false, configurable: false });" +
+            "  " +
+            "  // CRITICAL: Override orientation IMMEDIATELY" +
+            "  Object.defineProperty(screen, 'orientation', { " +
+            "    value: { type: 'landscape-primary', angle: 0 }, " +
+            "    writable: false, configurable: false " +
+            "  });" +
+            "  Object.defineProperty(window, 'orientation', { value: 90, writable: false, configurable: false });" +
+            "  " +
+            "  // Override window dimensions INSTANTLY" +
+            "  Object.defineProperty(window, 'outerWidth', { value: 1920, writable: false, configurable: false });" +
+            "  Object.defineProperty(window, 'outerHeight', { value: 1080, writable: false, configurable: false });" +
+            "  Object.defineProperty(window, 'innerWidth', { value: 1920, writable: false, configurable: false });" +
+            "  Object.defineProperty(window, 'innerHeight', { value: 969, writable: false, configurable: false });" +
+            "  Object.defineProperty(window, 'screen', { " +
+            "    value: { " +
+            "      width: 1920, height: 1080, availWidth: 1920, availHeight: 1040, " +
+            "      colorDepth: 24, pixelDepth: 24, " +
+            "      orientation: { type: 'landscape-primary', angle: 0 } " +
+            "    }, " +
+            "    writable: false, configurable: false " +
+            "  });" +
+            "  " +
+            "  // CRITICAL: Device pixel ratio override" +
+            "  Object.defineProperty(window, 'devicePixelRatio', { value: 1, writable: false, configurable: false });" +
+            "  " +
+            "  // INSTANT touch detection elimination" +
+            "  Object.defineProperty(navigator, 'maxTouchPoints', { value: 0, writable: false, configurable: false });" +
+            "  Object.defineProperty(navigator, 'msMaxTouchPoints', { value: 0, writable: false, configurable: false });" +
+            "  " +
+            "  // Remove touch events from window IMMEDIATELY" +
+            "  if ('ontouchstart' in window) delete window.ontouchstart;" +
+            "  if ('ontouchend' in window) delete window.ontouchend;" +
+            "  if ('ontouchmove' in window) delete window.ontouchmove;" +
+            "  if ('ontouchcancel' in window) delete window.ontouchcancel;" +
+            "  " +
+            "  // Platform override" +
+            "  Object.defineProperty(navigator, 'platform', { value: 'Win32', writable: false, configurable: false });" +
+            "  Object.defineProperty(navigator, 'oscpu', { value: 'Windows NT 10.0; Win64; x64', writable: false, configurable: false });" +
+            "  " +
+            "  // Override matchMedia IMMEDIATELY" +
+            "  if (window.matchMedia) {" +
+            "    const originalMatchMedia = window.matchMedia;" +
+            "    window.matchMedia = function(query) {" +
+            "      const lowerQuery = query.toLowerCase();" +
+            "      if (lowerQuery.includes('orientation') && lowerQuery.includes('portrait')) " +
+            "        return { matches: false, media: query, addListener: function(){}, removeListener: function(){} };" +
+            "      if (lowerQuery.includes('orientation') && lowerQuery.includes('landscape')) " +
+            "        return { matches: true, media: query, addListener: function(){}, removeListener: function(){} };" +
+            "      if (lowerQuery.includes('hover')) " +
+            "        return { matches: true, media: query, addListener: function(){}, removeListener: function(){} };" +
+            "      if (lowerQuery.includes('pointer') && lowerQuery.includes('coarse')) " +
+            "        return { matches: false, media: query, addListener: function(){}, removeListener: function(){} };" +
+            "      if (lowerQuery.includes('pointer') && lowerQuery.includes('fine')) " +
+            "        return { matches: true, media: query, addListener: function(){}, removeListener: function(){} };" +
+            "      return originalMatchMedia.call(window, query);" +
+            "    };" +
+            "  }" +
+            "  " +
+            "  console.log('⚡ IMMEDIATE stealth injection completed');" +
+            "}";
+        
+        webView.evaluateJavascript(immediateScript, null);
+    }
+    
     private void enhancePageInteraction() {
         // Advanced page interaction enhancements with anti-detection
         String enhancementScript = 
@@ -622,6 +708,9 @@ public class BrowserActivity extends AppCompatActivity {
             progressBar.setVisibility(View.VISIBLE);
             addressBar.setText(url);
             updateNavigationButtons();
+            
+            // CRITICAL: Inject stealth code IMMEDIATELY when page starts loading
+            injectImmediateStealthScript();
         }
         
         @Override
@@ -630,7 +719,7 @@ public class BrowserActivity extends AppCompatActivity {
             progressBar.setVisibility(View.GONE);
             updateNavigationButtons();
             
-            // Inject advanced desktop scripts for true desktop experience
+            // Inject additional desktop scripts after page loads
             injectAdvancedDesktopScript();
             
             // Force desktop layout and viewport
@@ -640,17 +729,8 @@ public class BrowserActivity extends AppCompatActivity {
                 "  if (existing) existing.remove();" +
                 "  var meta = document.createElement('meta');" +
                 "  meta.name = 'viewport';" +
-                "  meta.content = 'width=1366, initial-scale=0.65, maximum-scale=3.0, user-scalable=yes';" +
+                "  meta.content = 'width=1920, initial-scale=0.5, maximum-scale=3.0, user-scalable=yes';" +
                 "  document.head.appendChild(meta);" +
-                "  " +
-                "  // Force desktop responsive breakpoints" +
-                "  var style = document.createElement('style');" +
-                "  style.innerHTML = '" +
-                "    @media (max-width: 1365px) { body { min-width: 1366px !important; } }" +
-                "    * { -webkit-text-size-adjust: 100% !important; }" +
-                "    body { zoom: 1 !important; min-width: 1366px !important; }" +
-                "  ';" +
-                "  document.head.appendChild(style);" +
                 "})()";
             
             view.evaluateJavascript(viewportScript, null);
@@ -675,9 +755,17 @@ public class BrowserActivity extends AppCompatActivity {
         
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, String url) {
-            // Handle desktop-style link opening
+            // Inject stealth immediately for new URLs
+            injectImmediateStealthScript();
             view.loadUrl(url);
             return true;
+        }
+        
+        @Override
+        public void onLoadResource(WebView view, String url) {
+            super.onLoadResource(view, url);
+            // Inject stealth for every resource load to catch early detection scripts
+            injectImmediateStealthScript();
         }
     }
     
