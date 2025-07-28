@@ -119,12 +119,41 @@ public class SessionManager {
     
     public boolean isPremiumActive() {
         long expiryTime = prefs.getLong(KEY_PREMIUM_EXPIRY, 0);
-        return System.currentTimeMillis() < expiryTime;
+        long currentTime = System.currentTimeMillis();
+        boolean isActive = currentTime < expiryTime;
+        
+        // Debug logging
+        android.util.Log.d("SessionManager", "Premium check - Current: " + currentTime + ", Expiry: " + expiryTime + ", Active: " + isActive);
+        
+        return isActive;
     }
     
     public void grantPremiumAccess(long durationMillis) {
-        long expiryTime = System.currentTimeMillis() + durationMillis;
+        long currentTime = System.currentTimeMillis();
+        long expiryTime = currentTime + durationMillis;
         setPremiumExpiry(expiryTime);
+        
+        // Debug logging
+        android.util.Log.d("SessionManager", "Premium granted - Duration: " + durationMillis + "ms (" + (durationMillis/1000/60) + " minutes)");
+        android.util.Log.d("SessionManager", "Premium expires at: " + new java.util.Date(expiryTime));
+    }
+    
+    public long getRemainingPremiumTime() {
+        long expiryTime = prefs.getLong(KEY_PREMIUM_EXPIRY, 0);
+        long currentTime = System.currentTimeMillis();
+        return Math.max(0, expiryTime - currentTime);
+    }
+    
+    public String getRemainingPremiumTimeFormatted() {
+        long remainingMs = getRemainingPremiumTime();
+        if (remainingMs <= 0) {
+            return "Premium expired";
+        }
+        
+        long minutes = remainingMs / (1000 * 60);
+        long seconds = (remainingMs % (1000 * 60)) / 1000;
+        
+        return String.format("%02d:%02d remaining", minutes, seconds);
     }
     
     // Helper method to create tab session from WebView

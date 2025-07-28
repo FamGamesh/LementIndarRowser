@@ -39,13 +39,20 @@ public class BrowserActivity extends AppCompatActivity {
     private boolean isDesktopMode = true; // Default to desktop mode for advanced browsing
     private float currentZoom = 65; // Start at 65% for desktop view
     
-    // New enhanced features
-    private SessionManager sessionManager;
-    private AdManager adManager;
-    private LinearLayout tabsContainer;
-    private LinearLayout zoomControlsContainer;
-    private Button showUrlStackButton, newTabButton;
-    private android.widget.SeekBar zoomSlider;
+        // Tab management
+        private SessionManager sessionManager;
+        private AdManager adManager;
+        private LinearLayout tabsContainer;
+        private LinearLayout zoomControlsContainer;
+        private Button showUrlStackButton;
+        private android.widget.SeekBar zoomSlider;
+        private java.util.List<String> urlStack;
+        private long lastInterstitialTime = 0;
+        
+        // Tab management
+        private int tabCount = 1;
+        private View tabCounterView;
+        private TextView tabCountText;
     private java.util.List<String> urlStack;
     private long lastInterstitialTime = 0;
     
@@ -104,8 +111,11 @@ public class BrowserActivity extends AppCompatActivity {
         tabsContainer = findViewById(R.id.tabs_container);
         zoomControlsContainer = findViewById(R.id.zoom_controls_container);
         showUrlStackButton = findViewById(R.id.btn_show_url_stack);
-        newTabButton = findViewById(R.id.btn_new_tab);
         zoomSlider = findViewById(R.id.zoom_slider);
+        
+        // Tab counter setup
+        tabCounterView = findViewById(R.id.tab_counter);
+        tabCountText = tabCounterView.findViewById(R.id.tab_count_text);
         
         if (webView == null || addressBar == null) {
             throw new RuntimeException("Required views not found in layout");
@@ -449,81 +459,55 @@ public class BrowserActivity extends AppCompatActivity {
     }
     
     private void injectImmediateStealthScript() {
-        // CRITICAL: This script runs IMMEDIATELY when page starts loading
-        String immediateScript = 
-            "javascript:" +
-            "if (typeof window !== 'undefined') {" +
-            "  // INSTANT OVERRIDE - Must happen before any detection scripts" +
-            "  " +
-            "  // Override screen properties INSTANTLY" +
-            "  Object.defineProperty(screen, 'width', { value: 1920, writable: false, configurable: false });" +
-            "  Object.defineProperty(screen, 'height', { value: 1080, writable: false, configurable: false });" +
-            "  Object.defineProperty(screen, 'availWidth', { value: 1920, writable: false, configurable: false });" +
-            "  Object.defineProperty(screen, 'availHeight', { value: 1040, writable: false, configurable: false });" +
-            "  Object.defineProperty(screen, 'colorDepth', { value: 24, writable: false, configurable: false });" +
-            "  Object.defineProperty(screen, 'pixelDepth', { value: 24, writable: false, configurable: false });" +
-            "  " +
-            "  // CRITICAL: Override orientation IMMEDIATELY" +
-            "  Object.defineProperty(screen, 'orientation', { " +
-            "    value: { type: 'landscape-primary', angle: 0 }, " +
-            "    writable: false, configurable: false " +
-            "  });" +
-            "  Object.defineProperty(window, 'orientation', { value: 90, writable: false, configurable: false });" +
-            "  " +
-            "  // Override window dimensions INSTANTLY" +
-            "  Object.defineProperty(window, 'outerWidth', { value: 1920, writable: false, configurable: false });" +
-            "  Object.defineProperty(window, 'outerHeight', { value: 1080, writable: false, configurable: false });" +
-            "  Object.defineProperty(window, 'innerWidth', { value: 1920, writable: false, configurable: false });" +
-            "  Object.defineProperty(window, 'innerHeight', { value: 969, writable: false, configurable: false });" +
-            "  Object.defineProperty(window, 'screen', { " +
-            "    value: { " +
-            "      width: 1920, height: 1080, availWidth: 1920, availHeight: 1040, " +
-            "      colorDepth: 24, pixelDepth: 24, " +
-            "      orientation: { type: 'landscape-primary', angle: 0 } " +
-            "    }, " +
-            "    writable: false, configurable: false " +
-            "  });" +
-            "  " +
-            "  // CRITICAL: Device pixel ratio override" +
-            "  Object.defineProperty(window, 'devicePixelRatio', { value: 1, writable: false, configurable: false });" +
-            "  " +
-            "  // INSTANT touch detection elimination" +
-            "  Object.defineProperty(navigator, 'maxTouchPoints', { value: 0, writable: false, configurable: false });" +
-            "  Object.defineProperty(navigator, 'msMaxTouchPoints', { value: 0, writable: false, configurable: false });" +
-            "  " +
-            "  // Remove touch events from window IMMEDIATELY" +
-            "  if ('ontouchstart' in window) delete window.ontouchstart;" +
-            "  if ('ontouchend' in window) delete window.ontouchend;" +
-            "  if ('ontouchmove' in window) delete window.ontouchmove;" +
-            "  if ('ontouchcancel' in window) delete window.ontouchcancel;" +
-            "  " +
-            "  // Platform override" +
-            "  Object.defineProperty(navigator, 'platform', { value: 'Win32', writable: false, configurable: false });" +
-            "  Object.defineProperty(navigator, 'oscpu', { value: 'Windows NT 10.0; Win64; x64', writable: false, configurable: false });" +
-            "  " +
-            "  // Override matchMedia IMMEDIATELY" +
-            "  if (window.matchMedia) {" +
-            "    const originalMatchMedia = window.matchMedia;" +
-            "    window.matchMedia = function(query) {" +
-            "      const lowerQuery = query.toLowerCase();" +
-            "      if (lowerQuery.includes('orientation') && lowerQuery.includes('portrait')) " +
-            "        return { matches: false, media: query, addListener: function(){}, removeListener: function(){} };" +
-            "      if (lowerQuery.includes('orientation') && lowerQuery.includes('landscape')) " +
-            "        return { matches: true, media: query, addListener: function(){}, removeListener: function(){} };" +
-            "      if (lowerQuery.includes('hover')) " +
-            "        return { matches: true, media: query, addListener: function(){}, removeListener: function(){} };" +
-            "      if (lowerQuery.includes('pointer') && lowerQuery.includes('coarse')) " +
-            "        return { matches: false, media: query, addListener: function(){}, removeListener: function(){} };" +
-            "      if (lowerQuery.includes('pointer') && lowerQuery.includes('fine')) " +
-            "        return { matches: true, media: query, addListener: function(){}, removeListener: function(){} };" +
-            "      return originalMatchMedia.call(window, query);" +
-            "    };" +
-            "  }" +
-            "  " +
-            "  console.log('⚡ IMMEDIATE stealth injection completed');" +
-            "}";
-        
-        webView.evaluateJavascript(immediateScript, null);
+        try {
+            String immediateScript = 
+                "javascript:" +
+                "(function() {" +
+                "  'use strict';" +
+                "  " +
+                "  // Critical overrides for instant stealth" +
+                "  Object.defineProperty(screen, 'width', { value: 1920, writable: false, configurable: false });" +
+                "  Object.defineProperty(screen, 'height', { value: 1080, writable: false, configurable: false });" +
+                "  Object.defineProperty(screen, 'availWidth', { value: 1920, writable: false, configurable: false });" +
+                "  Object.defineProperty(screen, 'availHeight', { value: 1040, writable: false, configurable: false });" +
+                "  Object.defineProperty(screen, 'colorDepth', { value: 24, writable: false, configurable: false });" +
+                "  Object.defineProperty(screen, 'pixelDepth', { value: 24, writable: false, configurable: false });" +
+                "  " +
+                "  // CRITICAL: Override orientation IMMEDIATELY" +
+                "  Object.defineProperty(screen, 'orientation', { " +
+                "    value: { type: 'landscape-primary', angle: 0 }, " +
+                "    writable: false, configurable: false " +
+                "  });" +
+                "  Object.defineProperty(window, 'orientation', { value: 90, writable: false, configurable: false });" +
+                "  " +
+                "  // Override window dimensions INSTANTLY" +
+                "  Object.defineProperty(window, 'outerWidth', { value: 1920, writable: false, configurable: false });" +
+                "  Object.defineProperty(window, 'outerHeight', { value: 1080, writable: false, configurable: false });" +
+                "  Object.defineProperty(window, 'innerWidth', { value: 1920, writable: false, configurable: false });" +
+                "  Object.defineProperty(window, 'innerHeight', { value: 969, writable: false, configurable: false });" +
+                "  Object.defineProperty(window, 'screen', { " +
+                "    value: { " +
+                "      width: 1920, height: 1080, availWidth: 1920, availHeight: 1040, " +
+                "      colorDepth: 24, pixelDepth: 24, " +
+                "      orientation: { type: 'landscape-primary', angle: 0 } " +
+                "    }, " +
+                "    writable: false, configurable: false " +
+                "  });" +
+                "  " +
+                "  // CRITICAL: Device pixel ratio override" +
+                "  Object.defineProperty(window, 'devicePixelRatio', { value: 1, writable: false, configurable: false });" +
+                "  " +
+                "  // INSTANT touch detection elimination" +
+                "  Object.defineProperty(navigator, 'maxTouchPoints', { value: 0, writable: false, configurable: false });" +
+                "  Object.defineProperty(navigator, 'msMaxTouchPoints', { value: 0, writable: false, configurable: false });" +
+                "  " +
+                "  console.log('⚡ IMMEDIATE stealth injection completed');" +
+                "})();";
+
+            webView.evaluateJavascript(immediateScript, null);
+        } catch (Exception e) {
+            Log.e(TAG, "Error injecting stealth script", e);
+        }
     }
     
     private void enhancePageInteraction() {
@@ -660,10 +644,13 @@ public class BrowserActivity extends AppCompatActivity {
             showUrlStackButton.setOnClickListener(v -> showUrlStackDialog());
         }
         
-        // New Tab button  
-        if (newTabButton != null) {
-            newTabButton.setOnClickListener(v -> createNewTab());
+        // Tab counter click to show tab switcher  
+        if (tabCounterView != null) {
+            tabCounterView.setOnClickListener(v -> showTabSwitcher());
         }
+        
+        // Update tab counter display
+        updateTabCounter();
         
         desktopModeButton.setOnClickListener(v -> {
             toggleDesktopMode();
@@ -673,9 +660,19 @@ public class BrowserActivity extends AppCompatActivity {
             String url = addressBar.getText().toString().trim();
             if (!url.isEmpty()) {
                 loadNewUrl(processUrl(url));
+                addressBar.clearFocus(); // Hide keyboard and collapse address bar
                 return true;
             }
             return false;
+        });
+        
+        // Address bar focus handling for expansion
+        addressBar.setOnFocusChangeListener((v, hasFocus) -> {
+            if (hasFocus) {
+                expandAddressBar();
+            } else {
+                collapseAddressBar();
+            }
         });
     }
     
@@ -748,8 +745,12 @@ public class BrowserActivity extends AppCompatActivity {
         if (url != null && !url.isEmpty()) {
             loadNewUrl(url);
         } else {
-            Toast.makeText(this, "No URL provided", Toast.LENGTH_SHORT).show();
-            finish();
+            // Check if we need to restore a session instead
+            boolean restoreSession = getIntent().getBooleanExtra("restore_session", false);
+            if (!restoreSession) {
+                Toast.makeText(this, "No URL provided", Toast.LENGTH_SHORT).show();
+                finish();
+            }
         }
     }
     
@@ -954,12 +955,39 @@ public class BrowserActivity extends AppCompatActivity {
     
     @Override
     protected void onDestroy() {
-        if (webView != null) {
-            // Save session before destroying (for app close recovery)
-            saveCurrentSessionAsLast();
-            webView.destroy();
+        try {
+            if (webView != null) {
+                // Save session before destroying (for app close recovery)
+                saveCurrentSessionAsLast();
+                
+                // Proper WebView cleanup to prevent memory leaks
+                webView.clearHistory();
+                webView.clearCache(true);
+                webView.loadUrl("about:blank");
+                webView.onPause();
+                webView.removeAllViews();
+                webView.destroyDrawingCache();
+                webView.pauseTimers();
+                webView.destroy();
+                webView = null;
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error during cleanup", e);
         }
         super.onDestroy();
+    }
+    
+    @Override 
+    protected void onPause() {
+        super.onPause();
+        try {
+            if (webView != null) {
+                webView.onPause();
+                webView.pauseTimers();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error during pause", e);
+        }
     }
     
     // ==================== NEW ENHANCED FEATURES ====================
@@ -1039,8 +1067,18 @@ public class BrowserActivity extends AppCompatActivity {
         SessionManager.BrowserSession session = sessionManager.getRecentSession();
         if (session != null && !session.tabs.isEmpty()) {
             SessionManager.TabSession firstTab = session.tabs.get(0);
-            sessionManager.restoreWebView(webView, firstTab);
-            Toast.makeText(this, "Recent session restored", Toast.LENGTH_SHORT).show();
+            if (firstTab.url != null && !firstTab.url.isEmpty()) {
+                sessionManager.restoreWebView(webView, firstTab);
+                Toast.makeText(this, "Recent session restored", Toast.LENGTH_SHORT).show();
+            } else {
+                // Fallback to Google if no valid URL
+                loadNewUrl("https://www.google.com");
+                Toast.makeText(this, "Session restored with default page", Toast.LENGTH_SHORT).show();
+            }
+        } else {
+            // Fallback to Google if no session data
+            loadNewUrl("https://www.google.com");
+            Toast.makeText(this, "No recent session found, loading default page", Toast.LENGTH_SHORT).show();
         }
     }
     
@@ -1093,5 +1131,98 @@ public class BrowserActivity extends AppCompatActivity {
         // For now, just load Google in current tab (simplified tab implementation)
         loadNewUrl("https://www.google.com");
         Toast.makeText(this, "New tab opened", Toast.LENGTH_SHORT).show();
+    }
+    
+    private void updateTabCounter() {
+        if (tabCountText != null) {
+            tabCountText.setText(String.valueOf(tabCount));
+        }
+    }
+    
+    private void showTabSwitcher() {
+        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
+        
+        // Inflate tab switcher layout
+        android.view.LayoutInflater inflater = getLayoutInflater();
+        android.view.View dialogView = inflater.inflate(R.layout.dialog_tab_switcher, null);
+        builder.setView(dialogView);
+        
+        androidx.appcompat.app.AlertDialog dialog = builder.create();
+        
+        // Set transparent background for custom styling
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        }
+        
+        // Handle buttons
+        Button newTabButton = dialogView.findViewById(R.id.btn_new_tab_dialog);
+        Button closeButton = dialogView.findViewById(R.id.btn_close_tab_switcher);
+        
+        newTabButton.setOnClickListener(v -> {
+            dialog.dismiss();
+            createNewTab();
+        });
+        
+        closeButton.setOnClickListener(v -> dialog.dismiss());
+        
+        // For now, show simple tab info (can be enhanced later with RecyclerView)
+        androidx.recyclerview.widget.RecyclerView tabsRecyclerView = dialogView.findViewById(R.id.tabs_recycler_view);
+        
+        // Simple implementation - create a TextView showing current tab info
+        LinearLayout simpleTabList = new LinearLayout(this);
+        simpleTabList.setOrientation(LinearLayout.VERTICAL);
+        
+        // Current tab info
+        TextView currentTabInfo = new TextView(this);
+        currentTabInfo.setText("🌐 " + (webView.getTitle() != null ? webView.getTitle() : "Current Tab"));
+        currentTabInfo.setTextColor(getResources().getColor(android.R.color.white));
+        currentTabInfo.setTextSize(16);
+        currentTabInfo.setPadding(16, 16, 16, 16);
+        currentTabInfo.setBackground(getResources().getDrawable(R.drawable.button_background));
+        currentTabInfo.setClickable(true);
+        currentTabInfo.setOnClickListener(v -> {
+            dialog.dismiss();
+            // Current tab is already active
+        });
+        
+        simpleTabList.addView(currentTabInfo);
+        
+        // Replace RecyclerView with simple LinearLayout for now
+        ((LinearLayout) tabsRecyclerView.getParent()).removeView(tabsRecyclerView);
+        ((LinearLayout) dialogView).addView(simpleTabList, 1);
+        
+        dialog.show();
+    }
+    
+    private void expandAddressBar() {
+        // Hide navigation buttons when address bar is focused
+        if (backButton != null) backButton.setVisibility(View.GONE);
+        if (forwardButton != null) forwardButton.setVisibility(View.GONE);
+        if (refreshButton != null) refreshButton.setVisibility(View.GONE);
+        if (homeButton != null) homeButton.setVisibility(View.GONE);
+        if (desktopModeButton != null) desktopModeButton.setVisibility(View.GONE);
+        
+        // Animate address bar expansion
+        addressBar.animate()
+            .scaleX(1.02f)
+            .scaleY(1.02f)
+            .setDuration(200)
+            .start();
+    }
+    
+    private void collapseAddressBar() {
+        // Show navigation buttons when address bar loses focus
+        if (backButton != null) backButton.setVisibility(View.VISIBLE);
+        if (forwardButton != null) forwardButton.setVisibility(View.VISIBLE);
+        if (refreshButton != null) refreshButton.setVisibility(View.VISIBLE);
+        if (homeButton != null) homeButton.setVisibility(View.VISIBLE);
+        if (desktopModeButton != null) desktopModeButton.setVisibility(View.VISIBLE);
+        
+        // Animate address bar collapse
+        addressBar.animate()
+            .scaleX(1.0f)
+            .scaleY(1.0f)
+            .setDuration(200)
+            .start();
     }
 }

@@ -157,7 +157,22 @@ public class MainActivity extends AppCompatActivity {
         
         card.setOnClickListener(v -> {
             // Show interstitial ad before opening quick access sites
-            adManager.showQuickAccessAd(MainActivity.this, () -> openUrl(url));
+            try {
+                adManager.showQuickAccessAd(MainActivity.this, () -> {
+                    if (url != null && !url.isEmpty()) {
+                        openUrl(url);
+                    } else {
+                        Toast.makeText(MainActivity.this, "URL not available", Toast.LENGTH_SHORT).show();
+                    }
+                });
+            } catch (Exception e) {
+                // Fallback: open URL directly if ad fails
+                if (url != null && !url.isEmpty()) {
+                    openUrl(url);
+                } else {
+                    Toast.makeText(MainActivity.this, "URL not available", Toast.LENGTH_SHORT).show();
+                }
+            }
         });
         
         GridLayout.LayoutParams params = new GridLayout.LayoutParams();
@@ -194,33 +209,7 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void showMandatoryRewardedAd(String message, Runnable onSuccess) {
-        new AlertDialog.Builder(this)
-            .setTitle("Premium Desktop Browser")
-            .setMessage(message)
-            .setCancelable(false)
-            .setPositiveButton("Watch Ad", (dialog, which) -> {
-                adManager.showRewardedAd(this, new AdManager.RewardedAdCallback() {
-                    @Override
-                    public void onUserEarnedReward() {
-                        // Grant 1 hour premium access
-                        sessionManager.grantPremiumAccess(60 * 60 * 1000); // 1 hour
-                        Toast.makeText(MainActivity.this, "Premium desktop browsing unlocked for 1 hour!", Toast.LENGTH_SHORT).show();
-                    }
-                    
-                    @Override
-                    public void onAdFailedToShow() {
-                        Toast.makeText(MainActivity.this, "Ad failed to load. Please try again.", Toast.LENGTH_SHORT).show();
-                    }
-                    
-                    @Override
-                    public void onAdClosed(boolean earnedReward) {
-                        if (earnedReward) {
-                            onSuccess.run();
-                        }
-                    }
-                });
-            })
-            .show();
+        showPremiumRewardedAdDialog(message, onSuccess);
     }
     
     private String processInput(String input) {
@@ -358,33 +347,67 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void showPremiumRewardedAdDialog(String message, Runnable onSuccess) {
-        new AlertDialog.Builder(this)
-            .setTitle("Premium Feature")
-            .setMessage(message)
-            .setPositiveButton("Watch Ad", (dialog, which) -> {
-                adManager.showRewardedAd(this, new AdManager.RewardedAdCallback() {
-                    @Override
-                    public void onUserEarnedReward() {
-                        // Grant 1 hour premium access
-                        sessionManager.grantPremiumAccess(60 * 60 * 1000); // 1 hour
-                        Toast.makeText(MainActivity.this, "Premium features unlocked for 1 hour!", Toast.LENGTH_SHORT).show();
-                    }
+        // Create custom dialog with attractive design
+        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
+        
+        // Inflate custom layout
+        android.view.LayoutInflater inflater = getLayoutInflater();
+        android.view.View dialogView = inflater.inflate(R.layout.dialog_premium_reward, null);
+        builder.setView(dialogView);
+        
+        // Set custom message if provided
+        TextView messageView = dialogView.findViewById(R.id.premium_message);
+        if (message != null && !message.isEmpty()) {
+            messageView.setText(message);
+        }
+        
+        androidx.appcompat.app.AlertDialog dialog = builder.create();
+        dialog.setCancelable(false);
+        
+        // Set transparent background for custom styling
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        }
+        
+        // Handle buttons
+        Button watchAdButton = dialogView.findViewById(R.id.btn_watch_ad);
+        Button cancelButton = dialogView.findViewById(R.id.btn_cancel);
+        
+        watchAdButton.setOnClickListener(v -> {
+            dialog.dismiss();
+            adManager.showRewardedAd(this, new AdManager.RewardedAdCallback() {
+                @Override
+                public void onUserEarnedReward() {
+                    // Grant 1 hour premium access
+                    sessionManager.grantPremiumAccess(60 * 60 * 1000); // 1 hour
                     
-                    @Override
-                    public void onAdFailedToShow() {
-                        Toast.makeText(MainActivity.this, "Ad failed to load. Try again later.", Toast.LENGTH_SHORT).show();
+                    // Show success toast with remaining time
+                    String remainingTime = sessionManager.getRemainingPremiumTimeFormatted();
+                    Toast.makeText(MainActivity.this, "🎉 Premium unlocked! " + remainingTime + " 🚀", Toast.LENGTH_LONG).show();
+                }
+                
+                @Override
+                public void onAdFailedToShow() {
+                    Toast.makeText(MainActivity.this, "❌ Ad failed to load. Please try again later.", Toast.LENGTH_LONG).show();
+                }
+                
+                @Override
+                public void onAdClosed(boolean earnedReward) {
+                    if (earnedReward) {
+                        onSuccess.run();
                     }
-                    
-                    @Override
-                    public void onAdClosed(boolean earnedReward) {
-                        if (earnedReward) {
-                            onSuccess.run();
-                        }
-                    }
-                });
-            })
-            .setNegativeButton("Cancel", null)
-            .show();
+                }
+            });
+        });
+        
+        // Only show cancel for non-mandatory scenarios
+        if (onSuccess != null) {
+            cancelButton.setOnClickListener(v -> dialog.dismiss());
+        } else {
+            cancelButton.setVisibility(android.view.View.GONE);
+        }
+        
+        dialog.show();
     }
     
     @Override

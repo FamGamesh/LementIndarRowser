@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/premium_dialog_background"
+    android:padding="24dp">
+
+    <!-- Premium Crown Icon -->
+    <ImageView
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:src="@drawable/ic_premium_crown"
+        android:layout_gravity="center"
+        android:layout_marginBottom="16dp"
+        android:contentDescription="Premium Feature" />
+
+    <!-- Title -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="🏆 Premium Desktop Browser"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:textColor="#FFD700"
+        android:gravity="center"
+        android:layout_marginBottom="8dp"
+        android:fontFamily="sans-serif-medium"
+        android:shadowColor="#80000000"
+        android:shadowDx="2"
+        android:shadowDy="2"
+        android:shadowRadius="4" />
+
+    <!-- Subtitle -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Unlock Premium Features"
+        android:textSize="16sp"
+        android:textColor="#E3F2FD"
+        android:gravity="center"
+        android:layout_marginBottom="16dp"
+        android:fontFamily="sans-serif" />
+
+    <!-- Premium Features List -->
+    <androidx.cardview.widget.CardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="8dp"
+        app:cardBackgroundColor="#1A1A2E"
+        android:layout_marginBottom="20dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="✨ What You Get:"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="#FFD700"
+                android:layout_marginBottom="12dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="🚀 Advanced Desktop Browsing\n⚡ Unlimited Search Access\n🔒 Premium Session Management\n⏰ 1 Hour Premium Access"
+                android:textSize="14sp"
+                android:textColor="#FFFFFF"
+                android:lineSpacingExtra="4dp" />
+
+        </LinearLayout>
+
+    </androidx.cardview.widget.CardView>
+
+    <!-- Message -->
+    <TextView
+        android:id="@+id/premium_message"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Watch this ad to unlock premium desktop browsing experience for 1 hour!"
+        android:textSize="16sp"
+        android:textColor="#E8EAF6"
+        android:gravity="center"
+        android:layout_marginBottom="24dp"
+        android:lineSpacingExtra="4dp"
+        android:fontFamily="sans-serif" />
+
+    <!-- Buttons -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center">
+
+        <Button
+            android:id="@+id/btn_cancel"
+            android:layout_width="0dp"
+            android:layout_height="56dp"
+            android:layout_weight="1"
+            android:text="Cancel"
+            android:textColor="#757575"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:background="@drawable/cancel_button_background"
+            android:layout_marginEnd="8dp"
+            android:elevation="4dp" />
+
+        <Button
+            android:id="@+id/btn_watch_ad"
+            android:layout_width="0dp"
+            android:layout_height="56dp"
+            android:layout_weight="1"
+            android:text="🎬 Watch Ad"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:background="@drawable/premium_button_background"
+            android:layout_marginStart="8dp"
+            android:elevation="6dp" />
+
+    </LinearLayout>
+
+</LinearLayout>
