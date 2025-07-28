@@ -43,6 +43,7 @@ public class WebViewActivity extends AppCompatActivity {
     private static final String TAG = "WebViewActivity";
     private WebView webView;
     private boolean isRecordingMacro = false;
+    private boolean isSelectorMode = false;
     private List<String> recordedSelectors = new ArrayList<>();
     private List<String> recordedElementNames = new ArrayList<>();
     private Handler longPressHandler = new Handler(Looper.getMainLooper());
@@ -55,6 +56,11 @@ public class WebViewActivity extends AppCompatActivity {
     private Button viewSavedFilesButton;
     private Chronometer macroTimer;
     
+    // Cropping tool elements
+    private View cropOverlay;
+    private boolean isDragging = false;
+    private float startX, startY, endX, endY;
+    
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -64,6 +70,7 @@ public class WebViewActivity extends AppCompatActivity {
             
             setupToolbar();
             setupMacroControls();
+            setupCropOverlay();
             initializeWebView();
             loadUrl();
             
@@ -98,6 +105,140 @@ public class WebViewActivity extends AppCompatActivity {
         
         // Initially hide macro controls
         macroControlPanel.setVisibility(View.GONE);
+    }
+    
+    private void setupCropOverlay() {
+        // Create crop overlay programmatically
+        cropOverlay = new View(this) {
+            @Override
+            protected void onDraw(android.graphics.Canvas canvas) {
+                super.onDraw(canvas);
+                if (isDragging) {
+                    android.graphics.Paint paint = new android.graphics.Paint();
+                    paint.setColor(android.graphics.Color.RED);
+                    paint.setStyle(android.graphics.Paint.Style.STROKE);
+                    paint.setStrokeWidth(4);
+                    
+                    // Draw selection rectangle
+                    float left = Math.min(startX, endX);
+                    float top = Math.min(startY, endY);
+                    float right = Math.max(startX, endX);
+                    float bottom = Math.max(startY, endY);
+                    
+                    canvas.drawRect(left, top, right, bottom, paint);
+                    
+                    // Draw corner handles
+                    paint.setStyle(android.graphics.Paint.Style.FILL);
+                    paint.setColor(android.graphics.Color.BLUE);
+                    float handleSize = 20;
+                    canvas.drawRect(left - handleSize/2, top - handleSize/2, left + handleSize/2, top + handleSize/2, paint);
+                    canvas.drawRect(right - handleSize/2, top - handleSize/2, right + handleSize/2, top + handleSize/2, paint);
+                    canvas.drawRect(left - handleSize/2, bottom - handleSize/2, left + handleSize/2, bottom + handleSize/2, paint);
+                    canvas.drawRect(right - handleSize/2, bottom - handleSize/2, right + handleSize/2, bottom + handleSize/2, paint);
+                }
+            }
+        };
+        
+        cropOverlay.setVisibility(View.GONE);
+        cropOverlay.setClickable(true);
+        cropOverlay.setOnTouchListener(new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                if (!isSelectorMode) return false;
+                
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        startX = event.getX();
+                        startY = event.getY();
+                        endX = startX;
+                        endY = startY;
+                        isDragging = true;
+                        cropOverlay.invalidate();
+                        return true;
+                        
+                    case MotionEvent.ACTION_MOVE:
+                        if (isDragging) {
+                            endX = event.getX();
+                            endY = event.getY();
+                            cropOverlay.invalidate();
+                        }
+                        return true;
+                        
+                    case MotionEvent.ACTION_UP:
+                        if (isDragging) {
+                            isDragging = false;
+                            finalizeCropSelection();
+                        }
+                        return true;
+                }
+                return false;
+            }
+        });
+        
+        // Add overlay to the main layout
+        android.widget.FrameLayout mainLayout = findViewById(android.R.id.content);
+        android.widget.FrameLayout.LayoutParams params = new android.widget.FrameLayout.LayoutParams(
+            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+            android.widget.FrameLayout.LayoutParams.MATCH_PARENT
+        );
+        mainLayout.addView(cropOverlay, params);
+    }
+    
+    private void finalizeCropSelection() {
+        try {
+            // Calculate center point of selection
+            float centerX = (startX + endX) / 2;
+            float centerY = (startY + endY) / 2;
+            
+            // Convert to WebView coordinates
+            int[] webViewLocation = new int[2];
+            webView.getLocationInWindow(webViewLocation);
+            
+            float webViewX = centerX - webViewLocation[0];
+            float webViewY = centerY - webViewLocation[1];
+            
+            Log.d(TAG, "Crop selection center: " + webViewX + ", " + webViewY);
+            
+            // Execute JavaScript to find element
+            executeElementSelection(webViewX, webViewY);
+            
+            // Hide crop overlay
+            exitSelectorMode();
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error finalizing crop selection", e);
+            Toast.makeText(this, "Error processing selection", Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    private void executeElementSelection(float x, float y) {
+        // Ensure scripts are loaded before executing
+        injectSelectorScript();
+        
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            String jsCode = String.format(Locale.US,
+                "(function() {" +
+                "  try {" +
+                "    console.log('Finding element at: %f, %f');" +
+                "    if (typeof window.handleElementSelection === 'function') {" +
+                "      window.handleElementSelection(%f, %f);" +
+                "      return 'success';" +
+                "    } else {" +
+                "      console.error('handleElementSelection function not found');" +
+                "      Android.showError('Element selection function not available');" +
+                "      return 'function_not_found';" +
+                "    }" +
+                "  } catch (e) {" +
+                "    console.error('Error in element selection:', e);" +
+                "    Android.showError('Error finding element: ' + e.message);" +
+                "    return 'error';" +
+                "  }" +
+                "})()", x, y, x, y);
+            
+            webView.evaluateJavascript(jsCode, result -> {
+                Log.d(TAG, "Element selection result: " + result);
+            });
+        }, 500);
     }
     
     @SuppressLint("SetJavaScriptEnabled")
@@ -206,12 +347,63 @@ public class WebViewActivity extends AppCompatActivity {
             });
             
             webView.addJavascriptInterface(new SelectorJavaScriptInterface(), "Android");
-            setupAdvancedTouchListener();
+            setupSimpleClickListener();
             
         } catch (Exception e) {
             Log.e(TAG, "Error initializing WebView", e);
             throw e;
         }
+    }
+    
+    @SuppressLint("ClickableViewAccessibility")
+    private void setupSimpleClickListener() {
+        webView.setOnTouchListener(new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                if (event.getAction() == MotionEvent.ACTION_UP && isRecordingMacro) {
+                    float x = event.getX();
+                    float y = event.getY();
+                    
+                    Log.d(TAG, "Recording click at: " + x + ", " + y);
+                    
+                    // Record the click
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                        recordClickAtPosition(x, y);
+                    }, 100);
+                }
+                return false; // Let WebView handle the touch normally
+            }
+        });
+    }
+    
+    private void recordClickAtPosition(float x, float y) {
+        // Ensure scripts are loaded
+        injectSelectorScript();
+        
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            String jsCode = String.format(Locale.US,
+                "(function() {" +
+                "  try {" +
+                "    console.log('Recording click at: %f, %f');" +
+                "    if (typeof window.recordClickAtPosition === 'function') {" +
+                "      window.recordClickAtPosition(%f, %f);" +
+                "      return 'success';" +
+                "    } else {" +
+                "      console.error('recordClickAtPosition function not found');" +
+                "      Android.showError('Record function not available');" +
+                "      return 'function_not_found';" +
+                "    }" +
+                "  } catch (e) {" +
+                "    console.error('Error in recordClickAtPosition:', e);" +
+                "    Android.showError('Error recording: ' + e.message);" +
+                "    return 'error';" +
+                "  }" +
+                "})()", x, y, x, y);
+            
+            webView.evaluateJavascript(jsCode, result -> {
+                Log.d(TAG, "Click recording result: " + result);
+            });
+        }, 300);
     }
     
     @SuppressLint("ClickableViewAccessibility")
@@ -471,154 +663,108 @@ public class WebViewActivity extends AppCompatActivity {
 
     private String getSelectorScript() {
         return "javascript:" +
-            // Force script injection into global scope
             "(function() {" +
             "  'use strict';" +
             "  " +
-            "  console.log('Element Finder Browser: Starting advanced selector script injection...');" +
+            "  console.log('🚀 Element Finder Browser: Injecting advanced selector script...');" +
             "  " +
-            "  // Prevent double injection" +
-            "  if (window.elementFinderAdvanced) {" +
-            "    console.log('Advanced scripts already loaded');" +
-            "    return;" +
-            "  }" +
+            "  // Force global scope injection" +
+            "  window.elementFinderReady = true;" +
             "  " +
-            "  window.elementFinderAdvanced = true;" +
-            "  " +
-            "  // Advanced element finder object" +
-            "  window.elementFinderBrowser = window.elementFinderBrowser || {" +
+            "  // Enhanced element finder object" +
+            "  window.ElementFinder = {" +
             "    generateCSSSelector: function(element) {" +
             "      if (!element || element === document.documentElement || element === document.body) {" +
-            "        return { selector: '', name: 'root element' };" +
+            "        return { selector: 'body', name: 'page body' };" +
             "      }" +
             "      " +
             "      try {" +
             "        var elementName = this.getElementName(element);" +
             "        " +
-            "        // Priority 1: ID selector" +
+            "        // Try ID first" +
             "        if (element.id && element.id.trim()) {" +
-            "          var idSelector = '#' + CSS.escape(element.id);" +
-            "          try {" +
-            "            if (document.querySelectorAll(idSelector).length === 1) {" +
-            "              return { selector: idSelector, name: elementName };" +
-            "            }" +
-            "          } catch (e) {" +
-            "            console.warn('ID selector failed:', e);" +
-            "          }" +
+            "          var idSelector = '#' + element.id;" +
+            "          return { selector: idSelector, name: elementName };" +
             "        }" +
             "        " +
-            "        // Priority 2: Class selectors" +
+            "        // Try classes" +
             "        if (element.className && typeof element.className === 'string') {" +
             "          var classes = element.className.trim().split(/\\s+/).filter(function(c) { " +
-            "            return c.length > 0 && !/^\\d/.test(c); " +
+            "            return c.length > 0; " +
             "          });" +
-            "          " +
-            "          for (var i = 0; i < classes.length; i++) {" +
-            "            try {" +
-            "              var classSelector = '.' + CSS.escape(classes[i]);" +
-            "              if (document.querySelectorAll(classSelector).length === 1) {" +
-            "                return { selector: classSelector, name: elementName };" +
-            "              }" +
-            "            } catch (e) {" +
-            "              console.warn('Class selector failed:', e);" +
-            "            }" +
-            "          }" +
-            "          " +
-            "          // Try multiple classes" +
-            "          if (classes.length > 1) {" +
-            "            try {" +
-            "              var multiClassSelector = '.' + classes.slice(0, 2).map(CSS.escape).join('.');" +
-            "              if (document.querySelectorAll(multiClassSelector).length <= 3) {" +
-            "                return { selector: multiClassSelector, name: elementName };" +
-            "              }" +
-            "            } catch (e) {" +
-            "              console.warn('Multi-class selector failed:', e);" +
-            "            }" +
+            "          if (classes.length > 0) {" +
+            "            var classSelector = '.' + classes[0];" +
+            "            return { selector: classSelector, name: elementName };" +
             "          }" +
             "        }" +
             "        " +
-            "        // Priority 3: Attribute selectors" +
-            "        var attributes = ['name', 'data-testid', 'data-id', 'type', 'role', 'aria-label'];" +
-            "        for (var j = 0; j < attributes.length; j++) {" +
-            "          var attr = attributes[j];" +
+            "        // Try attributes" +
+            "        var attrs = ['name', 'data-testid', 'type', 'role'];" +
+            "        for (var i = 0; i < attrs.length; i++) {" +
+            "          var attr = attrs[i];" +
             "          if (element.hasAttribute(attr)) {" +
-            "            var attrValue = element.getAttribute(attr);" +
-            "            if (attrValue && attrValue.trim()) {" +
-            "              try {" +
-            "                var attrSelector = element.tagName.toLowerCase() + '[' + attr + '=\"' + attrValue + '\"]';" +
-            "                if (document.querySelectorAll(attrSelector).length <= 2) {" +
-            "                  return { selector: attrSelector, name: elementName };" +
-            "                }" +
-            "              } catch (e) {" +
-            "                console.warn('Attribute selector failed:', e);" +
-            "              }" +
+            "            var value = element.getAttribute(attr);" +
+            "            if (value && value.trim()) {" +
+            "              var attrSelector = element.tagName.toLowerCase() + '[' + attr + '=\"' + value + '\"]';" +
+            "              return { selector: attrSelector, name: elementName };" +
             "            }" +
             "          }" +
             "        }" +
             "        " +
-            "        // Priority 4: nth-child approach" +
-            "        try {" +
-            "          var parent = element.parentElement;" +
-            "          if (parent) {" +
-            "            var siblings = Array.from(parent.children).filter(function(child) {" +
-            "              return child.tagName === element.tagName;" +
-            "            });" +
-            "            var index = siblings.indexOf(element) + 1;" +
-            "            if (index > 0) {" +
-            "              var nthSelector = element.tagName.toLowerCase() + ':nth-of-type(' + index + ')';" +
-            "              return { selector: nthSelector, name: elementName };" +
-            "            }" +
+            "        // Fallback to tag + nth-child" +
+            "        var parent = element.parentElement;" +
+            "        if (parent) {" +
+            "          var siblings = Array.from(parent.children).filter(function(child) {" +
+            "            return child.tagName === element.tagName;" +
+            "          });" +
+            "          var index = siblings.indexOf(element) + 1;" +
+            "          if (index > 0) {" +
+            "            var nthSelector = element.tagName.toLowerCase() + ':nth-of-type(' + index + ')';" +
+            "            return { selector: nthSelector, name: elementName };" +
             "          }" +
-            "        } catch (e) {" +
-            "          console.warn('nth-child selector failed:', e);" +
             "        }" +
             "        " +
-            "        // Fallback" +
             "        return { selector: element.tagName.toLowerCase(), name: elementName };" +
             "      } catch (e) {" +
-            "        console.error('CSS selector generation error:', e);" +
-            "        return { selector: 'error', name: 'unknown' };" +
+            "        console.error('CSS selector error:', e);" +
+            "        return { selector: element.tagName.toLowerCase(), name: 'element' };" +
             "      }" +
             "    }," +
             "    " +
             "    getElementName: function(element) {" +
             "      try {" +
-            "        var name = element.tagName.toLowerCase();" +
-            "        if (element.id) return name + ' (id: ' + element.id + ')';" +
-            "        if (element.name) return name + ' (name: ' + element.name + ')';" +
+            "        var tag = element.tagName.toLowerCase();" +
+            "        if (element.id) return tag + ' #' + element.id;" +
+            "        if (element.name) return tag + ' [name=' + element.name + ']';" +
+            "        if (element.textContent && element.textContent.trim().length > 0 && element.textContent.trim().length < 30) {" +
+            "          return tag + ' \"' + element.textContent.trim().substring(0, 20) + '\"';" +
+            "        }" +
             "        if (element.className && typeof element.className === 'string') {" +
             "          var firstClass = element.className.trim().split(/\\s+/)[0];" +
-            "          if (firstClass) return name + ' (class: ' + firstClass + ')';" +
+            "          if (firstClass) return tag + '.' + firstClass;" +
             "        }" +
-            "        if (element.getAttribute('data-testid')) return name + ' (testid: ' + element.getAttribute('data-testid') + ')';" +
-            "        if (element.textContent && element.textContent.trim().length > 0 && element.textContent.trim().length < 30) {" +
-            "          return name + ' (\"' + element.textContent.trim().substring(0, 20) + '\")';" +
-            "        }" +
-            "        return name + ' element';" +
+            "        return tag;" +
             "      } catch (e) {" +
-            "        return 'unknown element';" +
+            "        return 'element';" +
             "      }" +
             "    }," +
             "    " +
-            "    generateXPathSelector: function(element) {" +
-            "      if (!element || element === document.documentElement || element === document.body) {" +
-            "        return { selector: '', name: 'root element' };" +
+            "    generateXPath: function(element) {" +
+            "      if (!element || element === document.documentElement) {" +
+            "        return { selector: '/html', name: 'html' };" +
             "      }" +
             "      " +
             "      try {" +
-            "        var elementName = this.getElementName(element);" +
             "        var xpath = '';" +
             "        var current = element;" +
             "        " +
-            "        while (current && current.nodeType === Node.ELEMENT_NODE && current !== document.documentElement) {" +
+            "        while (current && current !== document.documentElement) {" +
             "          var tagName = current.tagName.toLowerCase();" +
             "          var index = 1;" +
             "          " +
             "          var sibling = current.previousElementSibling;" +
             "          while (sibling) {" +
-            "            if (sibling.tagName === current.tagName) {" +
-            "              index++;" +
-            "            }" +
+            "            if (sibling.tagName === current.tagName) index++;" +
             "            sibling = sibling.previousElementSibling;" +
             "          }" +
             "          " +
@@ -626,96 +772,82 @@ public class WebViewActivity extends AppCompatActivity {
             "          current = current.parentElement;" +
             "        }" +
             "        " +
-            "        return { selector: '/html' + xpath, name: elementName };" +
+            "        return { selector: '/html' + xpath, name: this.getElementName(element) };" +
             "      } catch (e) {" +
-            "        console.error('XPath generation error:', e);" +
+            "        console.error('XPath error:', e);" +
             "        return { selector: 'error', name: 'unknown' };" +
             "      }" +
-            "    }," +
-            "    " +
-            "    getBestSelector: function(element) {" +
-            "      try {" +
-            "        var cssResult = this.generateCSSSelector(element);" +
-            "        var xpathResult = this.generateXPathSelector(element);" +
+            "    }" +
+            "  };" +
+            "  " +
+            "  // Global function for element selection (cropping tool)" +
+            "  window.handleElementSelection = function(x, y) {" +
+            "    try {" +
+            "      console.log('🎯 Finding element at coordinates:', x, y);" +
+            "      var element = document.elementFromPoint(x, y);" +
+            "      " +
+            "      if (element && element !== document.documentElement && element !== document.body) {" +
+            "        var cssResult = window.ElementFinder.generateCSSSelector(element);" +
+            "        var xpathResult = window.ElementFinder.generateXPath(element);" +
             "        " +
-            "        var recommended = cssResult.selector;" +
-            "        if (!recommended || recommended === 'error' || recommended.length === 0) {" +
-            "          recommended = xpathResult.selector;" +
-            "        }" +
-            "        " +
-            "        return {" +
+            "        var result = {" +
             "          css: cssResult.selector," +
             "          xpath: xpathResult.selector," +
-            "          recommended: recommended," +
+            "          recommended: cssResult.selector," +
             "          elementName: cssResult.name" +
             "        };" +
-            "      } catch (e) {" +
-            "        console.error('getBestSelector error:', e);" +
-            "        return { css: 'error', xpath: 'error', recommended: 'error', elementName: 'unknown' };" +
-            "      }" +
-            "    }" +
-            "  };" +
-            "  " +
-            "  // Define global functions" +
-            "  window.handleLongPress = function(x, y) {" +
-            "    try {" +
-            "      console.log('handleLongPress executed at:', x, y);" +
-            "      var element = document.elementFromPoint(x, y);" +
-            "      console.log('Element at coordinates:', element);" +
-            "      " +
-            "      if (element && element !== document.documentElement && element !== document.body) {" +
-            "        var selectors = window.elementFinderBrowser.getBestSelector(element);" +
-            "        console.log('Generated selectors:', selectors);" +
             "        " +
+            "        console.log('✅ Element found:', result);" +
             "        if (typeof Android !== 'undefined' && Android.showSelectorDialog) {" +
-            "          Android.showSelectorDialog(JSON.stringify(selectors));" +
-            "        } else {" +
-            "          console.error('Android interface not available');" +
+            "          Android.showSelectorDialog(JSON.stringify(result));" +
             "        }" +
             "      } else {" +
-            "        console.log('No valid element found');" +
+            "        console.log('❌ No element found');" +
             "        if (typeof Android !== 'undefined' && Android.showError) {" +
-            "          Android.showError('No clickable element found at coordinates');" +
+            "          Android.showError('No element found at the selected area');" +
             "        }" +
             "      }" +
             "    } catch (e) {" +
-            "      console.error('Error in handleLongPress:', e);" +
+            "      console.error('❌ Element selection error:', e);" +
             "      if (typeof Android !== 'undefined' && Android.showError) {" +
-            "        Android.showError('Error analyzing element: ' + e.message);" +
+            "        Android.showError('Error finding element: ' + e.message);" +
             "      }" +
             "    }" +
             "  };" +
             "  " +
-            "  window.recordClick = function(x, y) {" +
+            "  // Global function for macro recording" +
+            "  window.recordClickAtPosition = function(x, y) {" +
             "    try {" +
-            "      console.log('recordClick executed at:', x, y);" +
+            "      console.log('📝 Recording click at:', x, y);" +
             "      var element = document.elementFromPoint(x, y);" +
             "      " +
             "      if (element && element !== document.documentElement && element !== document.body) {" +
-            "        var selectors = window.elementFinderBrowser.getBestSelector(element);" +
-            "        console.log('Recording selectors:', selectors);" +
+            "        var cssResult = window.ElementFinder.generateCSSSelector(element);" +
             "        " +
+            "        console.log('✅ Recording:', cssResult);" +
             "        if (typeof Android !== 'undefined' && Android.recordSelector) {" +
-            "          Android.recordSelector(selectors.recommended || selectors.css || selectors.xpath, selectors.elementName);" +
-            "        } else {" +
-            "          console.error('Android recording interface not available');" +
+            "          Android.recordSelector(cssResult.selector, cssResult.name);" +
             "        }" +
+            "      } else {" +
+            "        console.log('⚠️ No recordable element at click position');" +
             "      }" +
             "    } catch (e) {" +
-            "      console.error('Error in recordClick:', e);" +
+            "      console.error('❌ Recording error:', e);" +
             "      if (typeof Android !== 'undefined' && Android.showError) {" +
-            "        Android.showError('Error recording click: ' + e.message);" +
+            "        Android.showError('Recording error: ' + e.message);" +
             "      }" +
             "    }" +
             "  };" +
             "  " +
-            "  console.log('✅ Element Finder Browser: Advanced selector script loaded successfully');" +
-            "  console.log('Available functions: handleLongPress, recordClick');" +
+            "  console.log('✅ Element Finder script loaded successfully!');" +
+            "  console.log('Available functions: handleElementSelection, recordClickAtPosition');" +
             "  " +
             "  // Test function availability" +
             "  setTimeout(function() {" +
-            "    console.log('Function test - handleLongPress:', typeof window.handleLongPress);" +
-            "    console.log('Function test - recordClick:', typeof window.recordClick);" +
+            "    console.log('🔍 Function test:');" +
+            "    console.log('  - handleElementSelection:', typeof window.handleElementSelection);" +
+            "    console.log('  - recordClickAtPosition:', typeof window.recordClickAtPosition);" +
+            "    console.log('  - ElementFinder:', typeof window.ElementFinder);" +
             "  }, 100);" +
             "  " +
             "})();";
@@ -730,14 +862,25 @@ public class WebViewActivity extends AppCompatActivity {
     @Override
     public boolean onPrepareOptionsMenu(Menu menu) {
         MenuItem recordItem = menu.findItem(R.id.action_record_macro);
+        MenuItem selectorItem = menu.findItem(R.id.action_find_selector);
+        
         if (recordItem != null) {
             if (isRecordingMacro) {
-                recordItem.setVisible(false); // Hide menu item when recording
+                recordItem.setVisible(false);
             } else {
                 recordItem.setVisible(true);
                 recordItem.setTitle("Record Macro");
             }
         }
+        
+        if (selectorItem != null) {
+            if (isSelectorMode) {
+                selectorItem.setTitle("Cancel Selector");
+            } else {
+                selectorItem.setTitle("Find Selector");
+            }
+        }
+        
         return super.onPrepareOptionsMenu(menu);
     }
     
@@ -752,6 +895,9 @@ public class WebViewActivity extends AppCompatActivity {
             } else if (id == R.id.action_record_macro) {
                 startMacroRecording();
                 return true;
+            } else if (id == R.id.action_find_selector) {
+                toggleSelectorMode();
+                return true;
             } else if (id == R.id.action_desktop_mode) {
                 toggleDesktopMode();
                 return true;
@@ -762,6 +908,29 @@ public class WebViewActivity extends AppCompatActivity {
         }
         
         return super.onOptionsItemSelected(item);
+    }
+    
+    private void toggleSelectorMode() {
+        if (isSelectorMode) {
+            exitSelectorMode();
+        } else {
+            enterSelectorMode();
+        }
+    }
+    
+    private void enterSelectorMode() {
+        isSelectorMode = true;
+        cropOverlay.setVisibility(View.VISIBLE);
+        Toast.makeText(this, "🎯 Selector Mode: Drag to select an element", Toast.LENGTH_LONG).show();
+        invalidateOptionsMenu();
+    }
+    
+    private void exitSelectorMode() {
+        isSelectorMode = false;
+        isDragging = false;
+        cropOverlay.setVisibility(View.GONE);
+        cropOverlay.invalidate();
+        invalidateOptionsMenu();
     }
     
     private void startMacroRecording() {
@@ -776,7 +945,7 @@ public class WebViewActivity extends AppCompatActivity {
         macroTimer.setBase(SystemClock.elapsedRealtime());
         macroTimer.start();
         
-        Toast.makeText(this, "Macro recording started - Click elements to record their selectors", Toast.LENGTH_LONG).show();
+        Toast.makeText(this, "🔴 Macro recording started - Click elements to record their selectors", Toast.LENGTH_LONG).show();
         invalidateOptionsMenu();
     }
     

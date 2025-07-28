@@ -3,6 +3,12 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
+        android:id="@+id/action_find_selector"
+        android:title="Find Selector"
+        android:icon="@drawable/ic_record"
+        app:showAsAction="ifRoom" />
+
+    <item
         android:id="@+id/action_record_macro"
         android:title="Record Macro"
         android:icon="@drawable/ic_record"
