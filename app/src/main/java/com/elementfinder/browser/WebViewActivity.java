@@ -204,16 +204,26 @@ public class WebViewActivity extends AppCompatActivity {
             float centerX = (startX + endX) / 2;
             float centerY = (startY + endY) / 2;
             
-            // Convert to WebView coordinates
-            int[] webViewLocation = new int[2];
-            webView.getLocationInWindow(webViewLocation);
+            Log.d(TAG, "Crop selection center in overlay: " + centerX + ", " + centerY);
             
-            float webViewX = centerX - webViewLocation[0];
-            float webViewY = centerY - webViewLocation[1];
+            // Convert overlay coordinates to WebView viewport coordinates
+            // The overlay is positioned over the WebView, so we need to account for:
+            // 1. WebView's position within its container
+            // 2. WebView's scroll position
+            // 3. Any scaling/zoom factors
             
-            Log.d(TAG, "Crop selection center: " + webViewX + ", " + webViewY);
+            // Get WebView's scroll position
+            float scrollX = webView.getScrollX();
+            float scrollY = webView.getScrollY();
             
-            // Execute JavaScript to find element
+            // Calculate the actual coordinates relative to the WebView's content
+            float webViewX = centerX + scrollX;
+            float webViewY = centerY + scrollY;
+            
+            Log.d(TAG, "Final coordinates for element detection: " + webViewX + ", " + webViewY);
+            Log.d(TAG, "WebView scroll position: " + scrollX + ", " + scrollY);
+            
+            // Execute JavaScript to find element with corrected coordinates
             executeElementSelection(webViewX, webViewY);
             
             // Hide crop overlay
@@ -226,33 +236,33 @@ public class WebViewActivity extends AppCompatActivity {
     }
     
     private void executeElementSelection(float x, float y) {
-        // Ensure scripts are loaded before executing
-        injectSelectorScript();
+        Log.d(TAG, "Executing element selection at: " + x + ", " + y);
         
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            String jsCode = String.format(Locale.US,
-                "(function() {" +
+        // Inject scripts immediately before use for reliability
+        String combinedScript = getSelectorScript() + 
+            String.format(Locale.US,
+                "setTimeout(function() {" +
                 "  try {" +
-                "    console.log('Finding element at: %f, %f');" +
+                "    console.log('Finding element at coordinates: %f, %f');" +
                 "    if (typeof window.handleElementSelection === 'function') {" +
                 "      window.handleElementSelection(%f, %f);" +
-                "      return 'success';" +
                 "    } else {" +
-                "      console.error('handleElementSelection function not found');" +
-                "      Android.showError('Element selection function not available');" +
-                "      return 'function_not_found';" +
+                "      console.error('handleElementSelection function not found after injection');" +
+                "      if (typeof Android !== 'undefined' && Android.showError) {" +
+                "        Android.showError('Element selection function not available');" +
+                "      }" +
                 "    }" +
                 "  } catch (e) {" +
                 "    console.error('Error in element selection:', e);" +
-                "    Android.showError('Error finding element: ' + e.message);" +
-                "    return 'error';" +
+                "    if (typeof Android !== 'undefined' && Android.showError) {" +
+                "      Android.showError('Error finding element: ' + e.message);" +
+                "    }" +
                 "  }" +
-                "})()", x, y, x, y);
-            
-            webView.evaluateJavascript(jsCode, result -> {
-                Log.d(TAG, "Element selection result: " + result);
-            });
-        }, 1000); // Increased delay from 500ms to 1000ms
+                "}, 100);", x, y, x, y);
+        
+        webView.evaluateJavascript(combinedScript, result -> {
+            Log.d(TAG, "Combined script execution result: " + result);
+        });
     }
     
     @SuppressLint("SetJavaScriptEnabled")
@@ -317,15 +327,10 @@ public class WebViewActivity extends AppCompatActivity {
                     // Wait a bit then inject selector scripts with increased delay
                     new Handler(Looper.getMainLooper()).postDelayed(() -> {
                         injectSelectorScript();
-                        
-                        // Verify injection after another delay with more time
-                        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                            verifyScriptInjection();
-                            runOnUiThread(() -> {
-                                Toast.makeText(WebViewActivity.this, "Page loaded. Use Find Selector or Record Macro!", Toast.LENGTH_LONG).show();
-                            });
-                        }, 1200); // Increased from 800ms to 1200ms
-                    }, 1500); // Increased from 1200ms to 1500ms
+                        runOnUiThread(() -> {
+                            Toast.makeText(WebViewActivity.this, "Page loaded. Use Find Selector or Record Macro!", Toast.LENGTH_SHORT).show();
+                        });
+                    }, 1500);
                 }
                 
                 @Override
@@ -391,33 +396,33 @@ public class WebViewActivity extends AppCompatActivity {
     }
     
     private void recordClickAtPosition(float x, float y) {
-        // Ensure scripts are loaded
-        injectSelectorScript();
+        Log.d(TAG, "Recording click at: " + x + ", " + y);
         
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            String jsCode = String.format(Locale.US,
-                "(function() {" +
+        // Inject scripts immediately before use for reliability
+        String combinedScript = getSelectorScript() + 
+            String.format(Locale.US,
+                "setTimeout(function() {" +
                 "  try {" +
-                "    console.log('Recording click at: %f, %f');" +
+                "    console.log('Recording click at coordinates: %f, %f');" +
                 "    if (typeof window.recordClickAtPosition === 'function') {" +
                 "      window.recordClickAtPosition(%f, %f);" +
-                "      return 'success';" +
                 "    } else {" +
-                "      console.error('recordClickAtPosition function not found');" +
-                "      Android.showError('Record function not available');" +
-                "      return 'function_not_found';" +
+                "      console.error('recordClickAtPosition function not found after injection');" +
+                "      if (typeof Android !== 'undefined' && Android.showError) {" +
+                "        Android.showError('Record function not available');" +
+                "      }" +
                 "    }" +
                 "  } catch (e) {" +
-                "    console.error('Error in recordClickAtPosition:', e);" +
-                "    Android.showError('Error recording: ' + e.message);" +
-                "    return 'error';" +
+                "    console.error('Error in recording:', e);" +
+                "    if (typeof Android !== 'undefined' && Android.showError) {" +
+                "      Android.showError('Error recording: ' + e.message);" +
+                "    }" +
                 "  }" +
-                "})()", x, y, x, y);
-            
-            webView.evaluateJavascript(jsCode, result -> {
-                Log.d(TAG, "Click recording result: " + result);
-            });
-        }, 800); // Increased delay from 300ms to 800ms
+                "}, 100);", x, y, x, y);
+        
+        webView.evaluateJavascript(combinedScript, result -> {
+            Log.d(TAG, "Combined recording script result: " + result);
+        });
     }
     
     @SuppressLint("ClickableViewAccessibility")
@@ -646,48 +651,14 @@ public class WebViewActivity extends AppCompatActivity {
             String script = getSelectorScript();
             webView.evaluateJavascript(script, result -> {
                 Log.d(TAG, "Selector script injection result: " + result);
-                // Force script verification after injection
-                new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                    verifyScriptInjection();
-                }, 500);
             });
         } catch (Exception e) {
             Log.e(TAG, "Error injecting selector script", e);
         }
     }
     
-    private void verifyScriptInjection() {
-        webView.evaluateJavascript(
-            "(typeof window.handleElementSelection === 'function' && typeof window.recordClickAtPosition === 'function')", 
-            result -> {
-                Log.d(TAG, "Script verification result: " + result);
-                if (!"true".equals(result)) {
-                    Log.w(TAG, "Scripts not properly loaded, re-injecting...");
-                    // Re-inject if verification fails with longer delay
-                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                        injectSelectorScript();
-                        // Verify again after re-injection
-                        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                            webView.evaluateJavascript(
-                                "(typeof window.handleElementSelection === 'function' && typeof window.recordClickAtPosition === 'function')", 
-                                retryResult -> {
-                                    if (!"true".equals(retryResult)) {
-                                        Log.e(TAG, "Script injection failed after retry");
-                                        runOnUiThread(() -> Toast.makeText(WebViewActivity.this, 
-                                            "Warning: Some functions may not be available", Toast.LENGTH_LONG).show());
-                                    } else {
-                                        Log.d(TAG, "Scripts verified successfully on retry");
-                                    }
-                                }
-                            );
-                        }, 800);
-                    }, 600); // Increased from 300ms to 600ms
-                } else {
-                    Log.d(TAG, "All scripts verified successfully");
-                }
-            }
-        );
-    }
+    // Script verification removed to prevent persistent warnings
+    // Scripts are now injected on-demand when needed
     
 
     private String getSelectorScript() {
@@ -813,9 +784,17 @@ public class WebViewActivity extends AppCompatActivity {
             "  window.handleElementSelection = function(x, y) {" +
             "    try {" +
             "      console.log('🎯 Finding element at coordinates:', x, y);" +
+            "      " +
+            "      // Log viewport and scroll information for debugging" +
+            "      console.log('Viewport size:', window.innerWidth, 'x', window.innerHeight);" +
+            "      console.log('Document scroll:', window.pageXOffset, window.pageYOffset);" +
+            "      console.log('Document size:', document.documentElement.scrollWidth, document.documentElement.scrollHeight);" +
+            "      " +
             "      var element = document.elementFromPoint(x, y);" +
+            "      console.log('Element found:', element ? element.tagName : 'null');" +
             "      " +
             "      if (element && element !== document.documentElement && element !== document.body) {" +
+            "        console.log('Valid element detected:', element);" +
             "        var cssResult = window.ElementFinder.generateCSSSelector(element);" +
             "        var xpathResult = window.ElementFinder.generateXPath(element);" +
             "        " +
@@ -826,14 +805,26 @@ public class WebViewActivity extends AppCompatActivity {
             "          elementName: cssResult.name" +
             "        };" +
             "        " +
-            "        console.log('✅ Element found:', result);" +
+            "        console.log('✅ Element selector result:', result);" +
             "        if (typeof Android !== 'undefined' && Android.showSelectorDialog) {" +
             "          Android.showSelectorDialog(JSON.stringify(result));" +
+            "        } else {" +
+            "          console.error('Android interface not available');" +
             "        }" +
             "      } else {" +
-            "        console.log('❌ No element found');" +
+            "        console.log('❌ No valid element found at coordinates');" +
+            "        console.log('Available elements near coordinates:');" +
+            "        // Try to find nearby elements for debugging" +
+            "        for (var dx = -10; dx <= 10; dx += 5) {" +
+            "          for (var dy = -10; dy <= 10; dy += 5) {" +
+            "            var testElement = document.elementFromPoint(x + dx, y + dy);" +
+            "            if (testElement && testElement !== document.documentElement && testElement !== document.body) {" +
+            "              console.log('Nearby element at', (x + dx), (y + dy), ':', testElement.tagName);" +
+            "            }" +
+            "          }" +
+            "        }" +
             "        if (typeof Android !== 'undefined' && Android.showError) {" +
-            "          Android.showError('No element found at the selected area');" +
+            "          Android.showError('No element found at the selected area. Try selecting a larger area.');" +
             "        }" +
             "      }" +
             "    } catch (e) {" +

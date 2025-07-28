@@ -5,7 +5,7 @@
     <item
         android:id="@+id/action_find_selector"
         android:title="Find Selector"
-        android:icon="@drawable/ic_record"
+        android:icon="@drawable/ic_lens"
         app:showAsAction="ifRoom" />
 
     <item
