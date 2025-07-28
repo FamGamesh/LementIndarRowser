@@ -173,22 +173,21 @@ public class AdManager {
         currentAdContext = context; // Track context for debugging
         Log.d(TAG, "🎬 Attempting to show interstitial ad - Context: " + context);
         
+        // Store callback IMMEDIATELY to prevent loss
+        currentOnAdClosedCallback = onAdClosed;
+        
         // Prevent multiple ad operations and add debouncing
         long currentTime = System.currentTimeMillis();
         if (isShowingInterstitial || (currentTime - lastAdClickTime) < AD_CLICK_DEBOUNCE) {
-            Log.d(TAG, "⏸️ Ad operation already in progress or too recent, skipping - Context: " + context);
-            if (onAdClosed != null) {
-                executeCallback(onAdClosed, "debounced");
-            }
+            Log.d(TAG, "⏸️ Ad operation already in progress or too recent, executing callback immediately - Context: " + context);
+            executeCallbackImmediately("debounced");
             return;
         }
         
         // Additional safety check for activity state
         if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
-            Log.w(TAG, "⚠️ Activity is not in valid state for showing ads - Context: " + context);
-            if (onAdClosed != null) {
-                executeCallback(onAdClosed, "invalid_activity");
-            }
+            Log.w(TAG, "⚠️ Activity is not in valid state for showing ads, executing callback immediately - Context: " + context);
+            executeCallbackImmediately("invalid_activity");
             return;
         }
         
@@ -196,9 +195,6 @@ public class AdManager {
         
         if (interstitialAd != null) {
             isShowingInterstitial = true;
-            
-            // Store callback for later execution
-            currentOnAdClosedCallback = onAdClosed;
             
             try {
                 interstitialAd.show(activity);
@@ -209,10 +205,8 @@ public class AdManager {
                 handleInterstitialAdFailure();
             }
         } else {
-            Log.d(TAG, "📭 Interstitial ad not ready, proceeding without ad - Context: " + context);
-            if (onAdClosed != null) {
-                executeCallback(onAdClosed, "no_ad");
-            }
+            Log.d(TAG, "📭 Interstitial ad not ready, executing callback immediately - Context: " + context);
+            executeCallbackImmediately("no_ad");
         }
     }
     
@@ -223,7 +217,10 @@ public class AdManager {
     private void handleInterstitialAdClosed() {
         Log.d(TAG, "🧹 Starting intelligent interstitial cleanup - Context: " + currentAdContext);
         
-        // Use handler with optimal delay for complete ad dismissal
+        // Execute callback IMMEDIATELY when ad is dismissed
+        executeCallbackImmediately("success");
+        
+        // Use handler for cleanup tasks (but not callback execution)
         android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
         mainHandler.postDelayed(() -> {
             try {
@@ -233,12 +230,7 @@ public class AdManager {
                 // Clear callback reference to prevent leaks
                 currentInterstitialCallback = null;
                 interstitialAd = null;
-                
-                // Execute stored callback
-                if (currentOnAdClosedCallback != null) {
-                    executeCallback(currentOnAdClosedCallback, "success");
-                    currentOnAdClosedCallback = null;
-                }
+                currentOnAdClosedCallback = null;
                 
                 // Load next ad
                 loadInterstitialAd();
@@ -250,23 +242,21 @@ public class AdManager {
                 Log.e(TAG, "💥 Error in intelligent interstitial cleanup", e);
                 forceResetInterstitialState();
             }
-        }, 1200); // Optimal delay for complete dismissal
+        }, 500); // Reduced delay since callback is executed immediately
     }
     
     // INTELLIGENT FAILURE HANDLER
     private void handleInterstitialAdFailure() {
         Log.d(TAG, "🔧 Handling interstitial ad failure - Context: " + currentAdContext);
         
+        // Execute callback IMMEDIATELY for failures
+        executeCallbackImmediately("failure");
+        
         // Immediate cleanup for failures since no ad is showing
         isShowingInterstitial = false;
         currentInterstitialCallback = null;
         interstitialAd = null;
-        
-        // Execute callback
-        if (currentOnAdClosedCallback != null) {
-            executeCallback(currentOnAdClosedCallback, "failure");
-            currentOnAdClosedCallback = null;
-        }
+        currentOnAdClosedCallback = null;
         
         // Load new ad
         loadInterstitialAd();
@@ -275,26 +265,30 @@ public class AdManager {
         currentAdContext = "";
     }
     
-    // INTELLIGENT CALLBACK EXECUTION WITH ERROR HANDLING
-    private void executeCallback(Runnable callback, String reason) {
-        try {
-            android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
-            mainHandler.post(() -> {
-                try {
-                    callback.run();
-                    Log.d(TAG, "✅ Callback executed successfully - Reason: " + reason);
-                } catch (Exception e) {
-                    Log.e(TAG, "💥 Error executing callback - Reason: " + reason, e);
-                }
-            });
-        } catch (Exception e) {
-            Log.e(TAG, "💥 Error posting callback to main thread - Reason: " + reason, e);
+    // IMMEDIATE CALLBACK EXECUTION (No delays)
+    private void executeCallbackImmediately(String reason) {
+        if (currentOnAdClosedCallback != null) {
+            try {
+                Log.d(TAG, "🚀 Executing callback IMMEDIATELY - Reason: " + reason + " - Context: " + currentAdContext);
+                currentOnAdClosedCallback.run();
+                Log.d(TAG, "✅ Callback executed successfully - Reason: " + reason);
+            } catch (Exception e) {
+                Log.e(TAG, "💥 Error executing callback - Reason: " + reason, e);
+            }
+            currentOnAdClosedCallback = null;
+        } else {
+            Log.w(TAG, "⚠️ No callback to execute - Reason: " + reason);
         }
     }
+    
     
     // FORCE RESET FOR EMERGENCY SITUATIONS
     private void forceResetInterstitialState() {
         Log.w(TAG, "🚨 Force resetting interstitial state");
+        
+        // Execute any pending callback before reset
+        executeCallbackImmediately("force_reset");
+        
         isShowingInterstitial = false;
         currentInterstitialCallback = null;
         interstitialAd = null;
