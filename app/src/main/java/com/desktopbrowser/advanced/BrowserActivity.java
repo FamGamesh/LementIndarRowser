@@ -53,8 +53,6 @@ public class BrowserActivity extends AppCompatActivity {
         private int tabCount = 1;
         private View tabCounterView;
         private TextView tabCountText;
-    private java.util.List<String> urlStack;
-    private long lastInterstitialTime = 0;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
