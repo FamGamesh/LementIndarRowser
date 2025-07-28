@@ -460,8 +460,8 @@ public class BrowserActivity extends AppCompatActivity {
             
             long downloadId = downloadManager.enqueue(request);
             
-            // Track download in our system
-            DownloadManager.getInstance(this).addDownload(filename, url, downloadId);
+            // Track download in our system - Fixed method call with String downloadId
+            com.desktopbrowser.advanced.DownloadManager.getInstance(this).addDownload(filename, url, String.valueOf(downloadId));
             
             Toast.makeText(this, "📥 Download started: " + filename, Toast.LENGTH_SHORT).show();
             

@@ -145,13 +145,49 @@
 
         </androidx.cardview.widget.CardView>
 
+        <!-- Session Management Buttons -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="16dp">
+
+            <Button
+                android:id="@+id/btn_recent_session"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Recent Session"
+                android:background="@drawable/button_background"
+                android:textColor="@android:color/white"
+                android:padding="12dp"
+                android:layout_marginEnd="8dp"
+                android:textSize="14sp"
+                android:elevation="4dp" />
+
+            <Button
+                android:id="@+id/btn_open_last_session"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Open Last Session"
+                android:background="@drawable/button_background"
+                android:textColor="@android:color/white"
+                android:padding="12dp"
+                android:layout_marginStart="8dp"
+                android:textSize="14sp"
+                android:elevation="4dp" />
+
+        </LinearLayout>
+
         <!-- Navigation Buttons -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center"
-            android:layout_marginBottom="24dp">
+            android:layout_marginBottom="8dp">
 
             <Button
                 android:id="@+id/btn_history"
@@ -162,7 +198,7 @@
                 android:drawableTop="@drawable/ic_history"
                 android:background="@drawable/feature_card_background"
                 android:padding="16dp"
-                android:layout_marginEnd="8dp"
+                android:layout_marginEnd="6dp"
                 android:textColor="@color/text_primary"
                 android:elevation="4dp" />
 
@@ -175,7 +211,20 @@
                 android:drawableTop="@drawable/ic_bookmarks"
                 android:background="@drawable/feature_card_background"
                 android:padding="16dp"
-                android:layout_marginHorizontal="8dp"
+                android:layout_marginHorizontal="6dp"
+                android:textColor="@color/text_primary"
+                android:elevation="4dp" />
+
+            <Button
+                android:id="@+id/btn_downloads"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Downloads"
+                android:drawableTop="@drawable/ic_arrow_forward"
+                android:background="@drawable/feature_card_background"
+                android:padding="16dp"
+                android:layout_marginHorizontal="6dp"
                 android:textColor="@color/text_primary"
                 android:elevation="4dp" />
 
@@ -188,7 +237,7 @@
                 android:drawableTop="@drawable/ic_settings"
                 android:background="@drawable/feature_card_background"
                 android:padding="16dp"
-                android:layout_marginStart="8dp"
+                android:layout_marginStart="6dp"
                 android:textColor="@color/text_primary"
                 android:elevation="4dp" />
 
@@ -202,6 +251,7 @@
             android:textSize="20sp"
             android:textStyle="bold"
             android:textColor="@android:color/white"
+            android:layout_marginTop="16dp"
             android:layout_marginBottom="16dp"
             android:shadowColor="#80000000"
             android:shadowDx="2"

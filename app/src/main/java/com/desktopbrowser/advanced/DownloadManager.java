@@ -161,12 +161,16 @@ public class DownloadManager {
         }
     }
     
-    // Add download to tracking
-    public void addDownload(String url, String filename, String filepath) {
+    // Add download to tracking - Fixed method signature to accept String downloadId
+    public void addDownload(String filename, String url, String downloadId) {
         try {
-            Log.d(TAG, "📥 Adding download to tracking: " + filename);
+            Log.d(TAG, "📥 Adding download to tracking: " + filename + ", ID: " + downloadId);
             
             List<DownloadItem> downloads = getAllDownloads();
+            
+            // Create filepath in Downloads directory
+            String downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).getAbsolutePath();
+            String filepath = downloadsDir + File.separator + filename;
             
             // Get file info
             File file = new File(filepath);
@@ -178,6 +182,7 @@ public class DownloadManager {
             item.url = url;
             item.filename = filename;
             item.filepath = filepath;
+            item.downloadId = downloadId; // Store the download ID
             item.fileSize = fileSize;
             item.downloadTime = System.currentTimeMillis();
             item.fileType = typeInfo.category;

@@ -4,6 +4,7 @@ public class DownloadItem {
     public String url;
     public String filename;
     public String filepath;
+    public String downloadId;  // Store download ID for tracking
     public long fileSize;
     public long downloadTime;
     public String fileType;
