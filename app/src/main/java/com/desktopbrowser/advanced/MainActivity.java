@@ -108,6 +108,9 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void addQuickAccessSite(String name, String url, String platform) {
+        // Make URL final so it can be used in click listeners
+        final String finalUrl = url;
+        
         CardView card = new CardView(this);
         card.setCardElevation(12);
         card.setRadius(16);
@@ -160,21 +163,24 @@ public class MainActivity extends AppCompatActivity {
         // Set drawable padding for better icon positioning
         button.setCompoundDrawablePadding(12);
         
-        // Add click listener to button as well for better responsiveness
+        // Add click listener to button - ALWAYS show interstitial ad first
         button.setOnClickListener(v -> {
-            // Show interstitial ad before opening quick access sites
+            android.util.Log.d("MainActivity", "Quick access button clicked: " + name + " -> " + finalUrl);
+            // ALWAYS show interstitial ad before opening quick access sites
             try {
                 adManager.showQuickAccessAd(MainActivity.this, () -> {
-                    if (url != null && !url.isEmpty()) {
-                        openUrl(url);
+                    if (finalUrl != null && !finalUrl.isEmpty()) {
+                        android.util.Log.d("MainActivity", "Opening URL after ad: " + finalUrl);
+                        openUrl(finalUrl);
                     } else {
                         Toast.makeText(MainActivity.this, "URL not available", Toast.LENGTH_SHORT).show();
                     }
                 });
             } catch (Exception e) {
+                android.util.Log.e("MainActivity", "Error showing quick access ad", e);
                 // Fallback: open URL directly if ad fails
-                if (url != null && !url.isEmpty()) {
-                    openUrl(url);
+                if (finalUrl != null && !finalUrl.isEmpty()) {
+                    openUrl(finalUrl);
                 } else {
                     Toast.makeText(MainActivity.this, "URL not available", Toast.LENGTH_SHORT).show();
                 }
@@ -183,20 +189,24 @@ public class MainActivity extends AppCompatActivity {
         
         card.addView(button);
         
+        // Add click listener to card - ALWAYS show interstitial ad first
         card.setOnClickListener(v -> {
-            // Show interstitial ad before opening quick access sites
+            android.util.Log.d("MainActivity", "Quick access card clicked: " + name + " -> " + finalUrl);
+            // ALWAYS show interstitial ad before opening quick access sites
             try {
                 adManager.showQuickAccessAd(MainActivity.this, () -> {
-                    if (url != null && !url.isEmpty()) {
-                        openUrl(url);
+                    if (finalUrl != null && !finalUrl.isEmpty()) {
+                        android.util.Log.d("MainActivity", "Opening URL after ad: " + finalUrl);
+                        openUrl(finalUrl);
                     } else {
                         Toast.makeText(MainActivity.this, "URL not available", Toast.LENGTH_SHORT).show();
                     }
                 });
             } catch (Exception e) {
+                android.util.Log.e("MainActivity", "Error showing quick access ad", e);
                 // Fallback: open URL directly if ad fails
-                if (url != null && !url.isEmpty()) {
-                    openUrl(url);
+                if (finalUrl != null && !finalUrl.isEmpty()) {
+                    openUrl(finalUrl);
                 } else {
                     Toast.makeText(MainActivity.this, "URL not available", Toast.LENGTH_SHORT).show();
                 }
@@ -223,24 +233,35 @@ public class MainActivity extends AppCompatActivity {
             }
             
             String url = processInput(input);
+            android.util.Log.d("MainActivity", "Search button pressed - Premium active: " + sessionManager.isPremiumActive());
             
             // Check if premium is still active
             if (sessionManager.isPremiumActive()) {
-                // User has active premium, browse directly
+                // User has active premium - show interstitial ad then browse directly
                 String remaining = sessionManager.getRemainingPremiumTimeFormatted();
                 Toast.makeText(this, "✨ Premium Active: " + remaining, Toast.LENGTH_SHORT).show();
-                openUrl(url);
-            } else {
-                // Show interstitial ad first, then show mandatory rewarded ad
+                
+                // Show interstitial ad for premium users too (each search gets an interstitial)
                 adManager.showSearchAd(this, () -> {
+                    android.util.Log.d("MainActivity", "Premium user - opening URL directly after interstitial: " + url);
+                    openUrl(url);
+                });
+            } else {
+                // User doesn't have premium - show interstitial ad then mandatory rewarded ad
+                android.util.Log.d("MainActivity", "Non-premium user - showing interstitial then rewarded ad flow");
+                adManager.showSearchAd(this, () -> {
+                    // After interstitial ad, show mandatory rewarded ad for premium unlock
                     showMandatoryRewardedAd("Watch this ad to unlock premium desktop browsing experience for 1 hour!", 
-                        () -> openUrl(url));
+                        () -> {
+                            android.util.Log.d("MainActivity", "Non-premium user - opening URL after rewarded ad: " + url);
+                            openUrl(url);
+                        });
                 });
             }
             
         } catch (Exception e) {
+            android.util.Log.e("MainActivity", "Error in handleBrowse", e);
             Toast.makeText(this, "Error opening browser: " + e.getMessage(), Toast.LENGTH_LONG).show();
-            e.printStackTrace();
         }
     }
     
@@ -337,61 +358,77 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void handleOpenLastSession() {
+        android.util.Log.d("MainActivity", "Open Last Session clicked");
+        
         // Check if session exists BEFORE showing ads
         if (!sessionManager.hasLastSession()) {
+            android.util.Log.d("MainActivity", "No last session found");
             showSessionNotFoundDialog("No Previous Session Found", 
                 "You haven't browsed any websites yet. Start browsing to create sessions that can be restored later!");
             return;
         }
         
-        if (sessionManager.isPremiumActive()) {
-            // User has premium access, restore session directly
-            restoreLastSession();
-        } else {
-            // Show premium message and rewarded ad
-            showPremiumRewardedAdDialog("This premium feature allows you to restore your last browsing session. Watch this ad to unlock premium features for 1 hour!", 
-                this::restoreLastSession);
-        }
+        // ALWAYS show rewarded ad for "Open Last Session" - not bound by premium timer
+        android.util.Log.d("MainActivity", "Showing rewarded ad for Open Last Session");
+        showPremiumRewardedAdDialog("This premium feature allows you to restore your last browsing session with all tabs and data. Watch this ad to access your saved session!", 
+            () -> {
+                android.util.Log.d("MainActivity", "Rewarded ad completed - restoring last session");
+                restoreLastSession();
+            });
     }
     
     private void handleRecentSession() {
+        android.util.Log.d("MainActivity", "Recent Session clicked");
+        
         // Check if recent session exists BEFORE showing ads
         if (!sessionManager.hasRecentSession()) {
+            android.util.Log.d("MainActivity", "No recent session found");
             showSessionNotFoundDialog("No Recent Session Found", 
                 "You need to browse some websites first, then press the Home button to create a recent session. Come back here after that!");
             return;
         }
         
-        // Show interstitial ad before opening recent session
+        // ALWAYS show interstitial ad before opening recent session (regardless of premium status)
+        android.util.Log.d("MainActivity", "Showing interstitial ad for Recent Session");
         try {
-            adManager.showRecentSessionAd(this, this::restoreRecentSession);
+            adManager.showRecentSessionAd(this, () -> {
+                android.util.Log.d("MainActivity", "Interstitial ad completed - restoring recent session");
+                restoreRecentSession();
+            });
         } catch (Exception e) {
+            android.util.Log.e("MainActivity", "Error showing recent session ad", e);
             // Fallback if ad fails
             restoreRecentSession();
         }
     }
     
     private void restoreLastSession() {
+        android.util.Log.d("MainActivity", "Attempting to restore last session");
         SessionManager.BrowserSession lastSession = sessionManager.getLastSession();
-        if (lastSession != null) {
+        if (lastSession != null && !lastSession.tabs.isEmpty()) {
+            android.util.Log.d("MainActivity", "Last session found with " + lastSession.tabs.size() + " tabs");
             Intent intent = new Intent(this, BrowserActivity.class);
             intent.putExtra("restore_session", true);
             intent.putExtra("session_type", "last");
             startActivity(intent);
             sessionManager.clearLastSession(); // Clear after successful restoration
         } else {
+            android.util.Log.e("MainActivity", "No last session data available");
             Toast.makeText(this, "No previous session found", Toast.LENGTH_SHORT).show();
         }
     }
     
     private void restoreRecentSession() {
+        android.util.Log.d("MainActivity", "Attempting to restore recent session");
         SessionManager.BrowserSession recentSession = sessionManager.getRecentSession();
-        if (recentSession != null) {
+        if (recentSession != null && !recentSession.tabs.isEmpty()) {
+            android.util.Log.d("MainActivity", "Recent session found with " + recentSession.tabs.size() + " tabs");
             Intent intent = new Intent(this, BrowserActivity.class);
             intent.putExtra("restore_session", true);
             intent.putExtra("session_type", "recent");
             startActivity(intent);
         } else {
+            android.util.Log.e("MainActivity", "No recent session data available");
             Toast.makeText(this, "No recent session found", Toast.LENGTH_SHORT).show();
         }
     }

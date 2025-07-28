@@ -193,19 +193,40 @@ public class SessionManager {
         }
     }
     
-    // Helper method to create tab session from WebView
+    // Helper method to create tab session from WebView with enhanced state capture
     public TabSession createTabSession(WebView webView, String url, String title) {
         Bundle webViewState = new Bundle();
-        webView.saveState(webViewState);
+        try {
+            // Save comprehensive WebView state
+            webView.saveState(webViewState);
+            android.util.Log.d("SessionManager", "Created tab session for URL: " + url + " with state bundle size: " + webViewState.size());
+        } catch (Exception e) {
+            android.util.Log.e("SessionManager", "Error saving WebView state", e);
+        }
         return new TabSession(url, title, webViewState);
     }
     
-    // Helper method to restore WebView from tab session
+    // Helper method to restore WebView from tab session with enhanced restoration
     public void restoreWebView(WebView webView, TabSession tabSession) {
-        if (tabSession.webViewState != null) {
-            webView.restoreState(tabSession.webViewState);
-        } else if (tabSession.url != null) {
-            webView.loadUrl(tabSession.url);
+        try {
+            if (tabSession.webViewState != null && !tabSession.webViewState.isEmpty()) {
+                android.util.Log.d("SessionManager", "Restoring WebView state for: " + tabSession.url);
+                webView.restoreState(tabSession.webViewState);
+            } else if (tabSession.url != null && !tabSession.url.isEmpty()) {
+                android.util.Log.d("SessionManager", "Loading URL directly (no saved state): " + tabSession.url);
+                webView.loadUrl(tabSession.url);
+            } else {
+                android.util.Log.w("SessionManager", "No URL or state to restore, loading Google");
+                webView.loadUrl("https://www.google.com");
+            }
+        } catch (Exception e) {
+            android.util.Log.e("SessionManager", "Error restoring WebView", e);
+            // Fallback to loading URL directly
+            if (tabSession.url != null && !tabSession.url.isEmpty()) {
+                webView.loadUrl(tabSession.url);
+            } else {
+                webView.loadUrl("https://www.google.com");
+            }
         }
     }
 }

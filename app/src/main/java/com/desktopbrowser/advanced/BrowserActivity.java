@@ -1105,52 +1105,208 @@ public class BrowserActivity extends AppCompatActivity {
     }
     
     private void saveCurrentSessionAsRecent() {
+        android.util.Log.d(TAG, "Saving current session as recent");
         SessionManager.BrowserSession session = new SessionManager.BrowserSession();
-        String currentUrl = webView.getUrl();
-        String currentTitle = webView.getTitle();
         
-        if (currentUrl != null) {
-            SessionManager.TabSession tabSession = sessionManager.createTabSession(webView, currentUrl, currentTitle);
-            session.tabs.add(tabSession);
-            sessionManager.saveRecentSession(session);
+        try {
+            // Save all tabs from tabList
+            if (tabList != null && !tabList.isEmpty()) {
+                android.util.Log.d(TAG, "Saving " + tabList.size() + " tabs to recent session");
+                for (TabInfo tab : tabList) {
+                    if (tab.url != null && !tab.url.isEmpty()) {
+                        SessionManager.TabSession tabSession = new SessionManager.TabSession(
+                            tab.url, 
+                            tab.title != null ? tab.title : "Tab", 
+                            null // WebView state - will be enhanced
+                        );
+                        session.tabs.add(tabSession);
+                    }
+                }
+                
+                // Also save current WebView if active
+                String currentUrl = webView.getUrl();
+                String currentTitle = webView.getTitle();
+                if (currentUrl != null && !currentUrl.isEmpty()) {
+                    // Check if current URL is already in the list
+                    boolean currentUrlExists = false;
+                    for (SessionManager.TabSession existingTab : session.tabs) {
+                        if (currentUrl.equals(existingTab.url)) {
+                            currentUrlExists = true;
+                            break;
+                        }
+                    }
+                    
+                    // Add current WebView as a tab if not already present
+                    if (!currentUrlExists) {
+                        SessionManager.TabSession currentTabSession = sessionManager.createTabSession(webView, currentUrl, currentTitle);
+                        session.tabs.add(currentTabSession);
+                    }
+                }
+            } else {
+                // Fallback: save at least the current WebView
+                String currentUrl = webView.getUrl();
+                String currentTitle = webView.getTitle();
+                if (currentUrl != null && !currentUrl.isEmpty()) {
+                    SessionManager.TabSession tabSession = sessionManager.createTabSession(webView, currentUrl, currentTitle);
+                    session.tabs.add(tabSession);
+                }
+            }
+            
+            if (!session.tabs.isEmpty()) {
+                sessionManager.saveRecentSession(session);
+                android.util.Log.d(TAG, "Recent session saved successfully with " + session.tabs.size() + " tabs");
+            } else {
+                android.util.Log.w(TAG, "No tabs to save for recent session");
+            }
+        } catch (Exception e) {
+            android.util.Log.e(TAG, "Error saving recent session", e);
         }
     }
     
     private void saveCurrentSessionAsLast() {
+        android.util.Log.d(TAG, "Saving current session as last session");
         SessionManager.BrowserSession session = new SessionManager.BrowserSession();
-        String currentUrl = webView.getUrl();
-        String currentTitle = webView.getTitle();
         
-        if (currentUrl != null) {
-            SessionManager.TabSession tabSession = sessionManager.createTabSession(webView, currentUrl, currentTitle);
-            session.tabs.add(tabSession);
-            sessionManager.saveLastSession(session);
+        try {
+            // Save all tabs from tabList
+            if (tabList != null && !tabList.isEmpty()) {
+                android.util.Log.d(TAG, "Saving " + tabList.size() + " tabs to last session");
+                for (TabInfo tab : tabList) {
+                    if (tab.url != null && !tab.url.isEmpty()) {
+                        SessionManager.TabSession tabSession = new SessionManager.TabSession(
+                            tab.url, 
+                            tab.title != null ? tab.title : "Tab", 
+                            null // WebView state - will be enhanced
+                        );
+                        session.tabs.add(tabSession);
+                    }
+                }
+                
+                // Also save current WebView if active
+                String currentUrl = webView.getUrl();
+                String currentTitle = webView.getTitle();
+                if (currentUrl != null && !currentUrl.isEmpty()) {
+                    // Check if current URL is already in the list
+                    boolean currentUrlExists = false;
+                    for (SessionManager.TabSession existingTab : session.tabs) {
+                        if (currentUrl.equals(existingTab.url)) {
+                            currentUrlExists = true;
+                            break;
+                        }
+                    }
+                    
+                    // Add current WebView as a tab if not already present
+                    if (!currentUrlExists) {
+                        SessionManager.TabSession currentTabSession = sessionManager.createTabSession(webView, currentUrl, currentTitle);
+                        session.tabs.add(currentTabSession);
+                    }
+                }
+            } else {
+                // Fallback: save at least the current WebView
+                String currentUrl = webView.getUrl();
+                String currentTitle = webView.getTitle();
+                if (currentUrl != null && !currentUrl.isEmpty()) {
+                    SessionManager.TabSession tabSession = sessionManager.createTabSession(webView, currentUrl, currentTitle);
+                    session.tabs.add(tabSession);
+                }
+            }
+            
+            if (!session.tabs.isEmpty()) {
+                sessionManager.saveLastSession(session);
+                android.util.Log.d(TAG, "Last session saved successfully with " + session.tabs.size() + " tabs");
+            } else {
+                android.util.Log.w(TAG, "No tabs to save for last session");
+            }
+        } catch (Exception e) {
+            android.util.Log.e(TAG, "Error saving last session", e);
         }
     }
     
     private void restoreLastSession() {
+        android.util.Log.d(TAG, "Attempting to restore last session");
         SessionManager.BrowserSession session = sessionManager.getLastSession();
         if (session != null && !session.tabs.isEmpty()) {
-            SessionManager.TabSession firstTab = session.tabs.get(0);
-            sessionManager.restoreWebView(webView, firstTab);
-            Toast.makeText(this, "Last session restored", Toast.LENGTH_SHORT).show();
+            android.util.Log.d(TAG, "Restoring last session with " + session.tabs.size() + " tabs");
+            
+            // Clear current tab list and reset counter
+            tabList.clear();
+            tabCount = 0;
+            
+            // Restore all tabs
+            for (int i = 0; i < session.tabs.size(); i++) {
+                SessionManager.TabSession tabSession = session.tabs.get(i);
+                boolean isActive = (i == 0); // Make first tab active
+                
+                TabInfo restoredTab = new TabInfo(
+                    tabSession.url, 
+                    tabSession.title != null ? tabSession.title : "Restored Tab",
+                    isActive
+                );
+                tabList.add(restoredTab);
+            }
+            
+            tabCount = tabList.size();
+            updateTabCounter();
+            
+            // Load the first tab in WebView
+            if (!session.tabs.isEmpty()) {
+                SessionManager.TabSession firstTab = session.tabs.get(0);
+                if (firstTab.url != null && !firstTab.url.isEmpty()) {
+                    android.util.Log.d(TAG, "Loading first tab URL: " + firstTab.url);
+                    sessionManager.restoreWebView(webView, firstTab);
+                    Toast.makeText(this, "Last session restored with " + tabCount + " tabs", Toast.LENGTH_LONG).show();
+                } else {
+                    android.util.Log.w(TAG, "First tab has no URL, loading Google");
+                    loadNewUrl("https://www.google.com");
+                    Toast.makeText(this, "Session restored with default page", Toast.LENGTH_SHORT).show();
+                }
+            }
+        } else {
+            android.util.Log.e(TAG, "No last session data available");
+            loadNewUrl("https://www.google.com");
+            Toast.makeText(this, "No session to restore, loading default page", Toast.LENGTH_SHORT).show();
         }
     }
     
     private void restoreRecentSession() {
+        android.util.Log.d(TAG, "Attempting to restore recent session");
         SessionManager.BrowserSession session = sessionManager.getRecentSession();
         if (session != null && !session.tabs.isEmpty()) {
+            android.util.Log.d(TAG, "Restoring recent session with " + session.tabs.size() + " tabs");
+            
+            // Clear current tab list and reset counter  
+            tabList.clear();
+            tabCount = 0;
+            
+            // Restore all tabs
+            for (int i = 0; i < session.tabs.size(); i++) {
+                SessionManager.TabSession tabSession = session.tabs.get(i);
+                boolean isActive = (i == 0); // Make first tab active
+                
+                TabInfo restoredTab = new TabInfo(
+                    tabSession.url, 
+                    tabSession.title != null ? tabSession.title : "Restored Tab",
+                    isActive
+                );
+                tabList.add(restoredTab);
+            }
+            
+            tabCount = tabList.size();
+            updateTabCounter();
+            
+            // Load the first tab in WebView
             SessionManager.TabSession firstTab = session.tabs.get(0);
             if (firstTab.url != null && !firstTab.url.isEmpty()) {
+                android.util.Log.d(TAG, "Loading first tab URL: " + firstTab.url);
                 sessionManager.restoreWebView(webView, firstTab);
-                Toast.makeText(this, "Recent session restored", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Recent session restored with " + tabCount + " tabs", Toast.LENGTH_LONG).show();
             } else {
-                // Fallback to Google if no valid URL
+                android.util.Log.w(TAG, "First tab has no URL, loading Google");
                 loadNewUrl("https://www.google.com");
                 Toast.makeText(this, "Session restored with default page", Toast.LENGTH_SHORT).show();
             }
         } else {
-            // Fallback to Google if no session data
+            android.util.Log.e(TAG, "No recent session data available");
             loadNewUrl("https://www.google.com");
             Toast.makeText(this, "No recent session found, loading default page", Toast.LENGTH_SHORT).show();
         }
