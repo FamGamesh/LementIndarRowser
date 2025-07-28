@@ -90,7 +90,7 @@ public class BrowserActivity extends AppCompatActivity {
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true);
         webSettings.setDatabaseEnabled(true);
-        webSettings.setAppCacheEnabled(true);
+        // Note: setAppCacheEnabled() was deprecated and removed in API 33+
         
         // Desktop browsing optimizations
         webSettings.setLoadWithOverviewMode(true);
@@ -125,7 +125,7 @@ public class BrowserActivity extends AppCompatActivity {
         
         // Desktop viewport settings
         webSettings.setLayoutAlgorithm(WebSettings.LayoutAlgorithm.NORMAL);
-        webSettings.setInitialScale(1);
+        // Note: setInitialScale() was deprecated and removed in API 33+
         webSettings.setMinimumFontSize(1);
         webSettings.setMinimumLogicalFontSize(1);
         webSettings.setDefaultFontSize(16);
