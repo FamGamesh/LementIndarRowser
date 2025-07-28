@@ -35,31 +35,32 @@
         android:textColor="@color/secondary_text_color"
         android:gravity="center" />
 
-    <com.google.android.material.textfield.TextInputLayout
+    <!-- Fixed: Use standard EditText instead of Material Components that might not be properly loaded -->
+    <EditText
+        android:id="@+id/search_edit_text"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="56dp"
         android:layout_marginBottom="24dp"
         android:hint="@string/search_hint"
-        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+        android:inputType="textUri"
+        android:imeOptions="actionGo"
+        android:singleLine="true"
+        android:background="@drawable/edittext_background"
+        android:padding="16dp"
+        android:textSize="16sp"
+        android:textColor="@color/primary_text_color"
+        android:textColorHint="@color/secondary_text_color" />
 
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/search_edit_text"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="textUri"
-            android:imeOptions="actionGo"
-            android:singleLine="true" />
-
-    </com.google.android.material.textfield.TextInputLayout>
-
-    <com.google.android.material.button.MaterialButton
+    <!-- Fixed: Use standard Button instead of Material Components -->
+    <Button
         android:id="@+id/search_button"
         android:layout_width="match_parent"
         android:layout_height="56dp"
         android:text="@string/search_button_text"
         android:textSize="16sp"
         android:textStyle="bold"
-        style="@style/Widget.MaterialComponents.Button" />
+        android:textColor="@color/white"
+        android:background="@drawable/button_background" />
 
     <TextView
         android:layout_width="wrap_content"

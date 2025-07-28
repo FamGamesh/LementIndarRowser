@@ -8,6 +8,7 @@ import android.content.Context;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.MotionEvent;
@@ -32,6 +33,7 @@ import org.json.JSONObject;
 
 public class WebViewActivity extends AppCompatActivity {
     
+    private static final String TAG = "WebViewActivity";
     private WebView webView;
     private boolean isRecordingMacro = false;
     private List<String> recordedSelectors = new ArrayList<>();
@@ -42,51 +44,94 @@ public class WebViewActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_webview);
         
-        setupToolbar();
-        initializeWebView();
-        loadUrl();
+        try {
+            setContentView(R.layout.activity_webview);
+            
+            setupToolbar();
+            initializeWebView();
+            loadUrl();
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error in onCreate", e);
+            Toast.makeText(this, "Error initializing browser: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            finish();
+        }
     }
     
     private void setupToolbar() {
-        Toolbar toolbar = findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
-        if (getSupportActionBar() != null) {
-            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-            getSupportActionBar().setTitle("Element Finder Browser");
+        try {
+            Toolbar toolbar = findViewById(R.id.toolbar);
+            setSupportActionBar(toolbar);
+            if (getSupportActionBar() != null) {
+                getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+                getSupportActionBar().setTitle("Element Finder Browser");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error setting up toolbar", e);
         }
     }
     
     @SuppressLint("SetJavaScriptEnabled")
     private void initializeWebView() {
-        webView = findViewById(R.id.webview);
-        
-        WebSettings webSettings = webView.getSettings();
-        webSettings.setJavaScriptEnabled(true);
-        webSettings.setDomStorageEnabled(true);
-        webSettings.setLoadWithOverviewMode(true);
-        webSettings.setUseWideViewPort(true);
-        webSettings.setBuiltInZoomControls(true);
-        webSettings.setDisplayZoomControls(false);
-        webSettings.setSupportZoom(true);
-        webSettings.setDefaultTextEncodingName("utf-8");
-        
-        // Set user agent for desktop mode initially disabled
-        webSettings.setUserAgentString(webSettings.getUserAgentString());
-        
-        webView.setWebViewClient(new WebViewClient() {
-            @Override
-            public void onPageFinished(WebView view, String url) {
-                super.onPageFinished(view, url);
-                injectSelectorScript();
+        try {
+            webView = findViewById(R.id.webview);
+            
+            if (webView == null) {
+                throw new RuntimeException("WebView not found in layout");
             }
-        });
-        
-        webView.setWebChromeClient(new WebChromeClient());
-        webView.addJavascriptInterface(new SelectorJavaScriptInterface(), "Android");
-        
-        setupTouchListener();
+            
+            WebSettings webSettings = webView.getSettings();
+            webSettings.setJavaScriptEnabled(true);
+            webSettings.setDomStorageEnabled(true);
+            webSettings.setLoadWithOverviewMode(true);
+            webSettings.setUseWideViewPort(true);
+            webSettings.setBuiltInZoomControls(true);
+            webSettings.setDisplayZoomControls(false);
+            webSettings.setSupportZoom(true);
+            webSettings.setDefaultTextEncodingName("utf-8");
+            
+            // Additional safety settings
+            webSettings.setAllowFileAccess(false);
+            webSettings.setAllowContentAccess(false);
+            webSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+            
+            webView.setWebViewClient(new WebViewClient() {
+                @Override
+                public void onPageFinished(WebView view, String url) {
+                    super.onPageFinished(view, url);
+                    try {
+                        injectSelectorScript();
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error injecting selector script", e);
+                    }
+                }
+                
+                @Override
+                public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+                    super.onReceivedError(view, errorCode, description, failingUrl);
+                    Log.e(TAG, "WebView error: " + description);
+                    Toast.makeText(WebViewActivity.this, "Error loading page: " + description, Toast.LENGTH_SHORT).show();
+                }
+            });
+            
+            webView.setWebChromeClient(new WebChromeClient() {
+                @Override
+                public void onReceivedTitle(WebView view, String title) {
+                    super.onReceivedTitle(view, title);
+                    if (getSupportActionBar() != null) {
+                        getSupportActionBar().setTitle(title);
+                    }
+                }
+            });
+            
+            webView.addJavascriptInterface(new SelectorJavaScriptInterface(), "Android");
+            setupTouchListener();
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error initializing WebView", e);
+            throw e;
+        }
     }
     
     @SuppressLint("ClickableViewAccessibility")
@@ -94,41 +139,44 @@ public class WebViewActivity extends AppCompatActivity {
         webView.setOnTouchListener(new View.OnTouchListener() {
             @Override
             public boolean onTouch(View v, MotionEvent event) {
-                switch (event.getAction()) {
-                    case MotionEvent.ACTION_DOWN:
-                        isLongPressTriggered = false;
-                        longPressRunnable = new Runnable() {
-                            @Override
-                            public void run() {
-                                isLongPressTriggered = true;
+                try {
+                    switch (event.getAction()) {
+                        case MotionEvent.ACTION_DOWN:
+                            isLongPressTriggered = false;
+                            longPressRunnable = new Runnable() {
+                                @Override
+                                public void run() {
+                                    isLongPressTriggered = true;
+                                    float x = event.getX();
+                                    float y = event.getY();
+                                    webView.evaluateJavascript(
+                                        "handleLongPress(" + x + ", " + y + ");", null);
+                                }
+                            };
+                            longPressHandler.postDelayed(longPressRunnable, 2000);
+                            break;
+                            
+                        case MotionEvent.ACTION_UP:
+                        case MotionEvent.ACTION_CANCEL:
+                            if (longPressRunnable != null) {
+                                longPressHandler.removeCallbacks(longPressRunnable);
+                            }
+                            if (!isLongPressTriggered && isRecordingMacro) {
                                 float x = event.getX();
                                 float y = event.getY();
                                 webView.evaluateJavascript(
-                                    "handleLongPress(" + x + ", " + y + ");", null);
+                                    "recordClick(" + x + ", " + y + ");", null);
                             }
-                        };
-                        longPressHandler.postDelayed(longPressRunnable, 2000);
-                        break;
-                        
-                    case MotionEvent.ACTION_UP:
-                    case MotionEvent.ACTION_CANCEL:
-                        if (longPressRunnable != null) {
-                            longPressHandler.removeCallbacks(longPressRunnable);
-                        }
-                        if (!isLongPressTriggered && isRecordingMacro) {
-                            // Record normal click for macro
-                            float x = event.getX();
-                            float y = event.getY();
-                            webView.evaluateJavascript(
-                                "recordClick(" + x + ", " + y + ");", null);
-                        }
-                        break;
-                        
-                    case MotionEvent.ACTION_MOVE:
-                        if (longPressRunnable != null) {
-                            longPressHandler.removeCallbacks(longPressRunnable);
-                        }
-                        break;
+                            break;
+                            
+                        case MotionEvent.ACTION_MOVE:
+                            if (longPressRunnable != null) {
+                                longPressHandler.removeCallbacks(longPressRunnable);
+                            }
+                            break;
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error in touch handler", e);
                 }
                 return false;
             }
@@ -136,15 +184,29 @@ public class WebViewActivity extends AppCompatActivity {
     }
     
     private void loadUrl() {
-        String url = getIntent().getStringExtra("url");
-        if (url != null) {
-            webView.loadUrl(url);
+        try {
+            String url = getIntent().getStringExtra("url");
+            if (url != null && !url.isEmpty()) {
+                Log.d(TAG, "Loading URL: " + url);
+                webView.loadUrl(url);
+            } else {
+                Toast.makeText(this, "No URL provided", Toast.LENGTH_SHORT).show();
+                finish();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error loading URL", e);
+            Toast.makeText(this, "Error loading URL: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            finish();
         }
     }
     
     private void injectSelectorScript() {
-        String script = getSelectorScript();
-        webView.evaluateJavascript(script, null);
+        try {
+            String script = getSelectorScript();
+            webView.evaluateJavascript(script, null);
+        } catch (Exception e) {
+            Log.e(TAG, "Error injecting script", e);
+        }
     }
     
     private String getSelectorScript() {
@@ -153,113 +215,130 @@ public class WebViewActivity extends AppCompatActivity {
             "  generateCSSSelector: function(element) {" +
             "    if (!element) return '';" +
             "    " +
-            "    // Priority 1: ID selector" +
-            "    if (element.id) {" +
-            "      var idSelector = '#' + element.id;" +
-            "      if (document.querySelectorAll(idSelector).length === 1) {" +
-            "        return idSelector;" +
-            "      }" +
-            "    }" +
-            "    " +
-            "    // Priority 2: Class selector with uniqueness check" +
-            "    if (element.className) {" +
-            "      var classes = element.className.split(' ').filter(c => c.length > 0);" +
-            "      for (var i = 0; i < classes.length; i++) {" +
-            "        var classSelector = '.' + classes[i];" +
-            "        if (document.querySelectorAll(classSelector).length === 1) {" +
-            "          return classSelector;" +
+            "    try {" +
+            "      // Priority 1: ID selector" +
+            "      if (element.id) {" +
+            "        var idSelector = '#' + element.id;" +
+            "        if (document.querySelectorAll(idSelector).length === 1) {" +
+            "          return idSelector;" +
             "        }" +
             "      }" +
             "      " +
-            "      // Try combination of classes" +
-            "      if (classes.length > 1) {" +
-            "        var combinedClass = '.' + classes.join('.');" +
-            "        if (document.querySelectorAll(combinedClass).length === 1) {" +
-            "          return combinedClass;" +
+            "      // Priority 2: Class selector with uniqueness check" +
+            "      if (element.className) {" +
+            "        var classes = element.className.split(' ').filter(function(c) { return c.length > 0; });" +
+            "        for (var i = 0; i < classes.length; i++) {" +
+            "          var classSelector = '.' + classes[i];" +
+            "          if (document.querySelectorAll(classSelector).length === 1) {" +
+            "            return classSelector;" +
+            "          }" +
+            "        }" +
+            "        " +
+            "        // Try combination of classes" +
+            "        if (classes.length > 1) {" +
+            "          var combinedClass = '.' + classes.join('.');" +
+            "          if (document.querySelectorAll(combinedClass).length === 1) {" +
+            "            return combinedClass;" +
+            "          }" +
             "        }" +
             "      }" +
-            "    }" +
-            "    " +
-            "    // Priority 3: Attribute-based selectors" +
-            "    var attributes = ['name', 'type', 'value', 'placeholder', 'title', 'alt'];" +
-            "    for (var attr of attributes) {" +
-            "      if (element.hasAttribute(attr)) {" +
-            "        var attrValue = element.getAttribute(attr);" +
-            "        var attrSelector = element.tagName.toLowerCase() + '[' + attr + '=\"' + attrValue + '\"]';" +
-            "        if (document.querySelectorAll(attrSelector).length === 1) {" +
-            "          return attrSelector;" +
+            "      " +
+            "      // Priority 3: Attribute-based selectors" +
+            "      var attributes = ['name', 'type', 'value', 'placeholder', 'title', 'alt'];" +
+            "      for (var j = 0; j < attributes.length; j++) {" +
+            "        var attr = attributes[j];" +
+            "        if (element.hasAttribute(attr)) {" +
+            "          var attrValue = element.getAttribute(attr);" +
+            "          var attrSelector = element.tagName.toLowerCase() + '[' + attr + '=\"' + attrValue + '\"]';" +
+            "          if (document.querySelectorAll(attrSelector).length === 1) {" +
+            "            return attrSelector;" +
+            "          }" +
             "        }" +
             "      }" +
-            "    }" +
-            "    " +
-            "    // Priority 4: nth-child selector" +
-            "    var parent = element.parentElement;" +
-            "    if (parent) {" +
-            "      var siblings = Array.from(parent.children);" +
-            "      var index = siblings.indexOf(element) + 1;" +
-            "      var nthSelector = element.tagName.toLowerCase() + ':nth-child(' + index + ')';" +
-            "      var parentSelector = this.generateCSSSelector(parent);" +
-            "      if (parentSelector) {" +
-            "        return parentSelector + ' > ' + nthSelector;" +
+            "      " +
+            "      // Priority 4: nth-child selector" +
+            "      var parent = element.parentElement;" +
+            "      if (parent) {" +
+            "        var siblings = Array.from(parent.children);" +
+            "        var index = siblings.indexOf(element) + 1;" +
+            "        var nthSelector = element.tagName.toLowerCase() + ':nth-child(' + index + ')';" +
+            "        return nthSelector;" +
             "      }" +
+            "      " +
+            "      return element.tagName.toLowerCase();" +
+            "    } catch (e) {" +
+            "      return element.tagName ? element.tagName.toLowerCase() : 'unknown';" +
             "    }" +
-            "    " +
-            "    return element.tagName.toLowerCase();" +
             "  }," +
             "  " +
             "  generateXPathSelector: function(element) {" +
             "    if (!element) return '';" +
             "    " +
-            "    var xpath = '';" +
-            "    var current = element;" +
-            "    " +
-            "    while (current && current.nodeType === Node.ELEMENT_NODE) {" +
-            "      var tagName = current.tagName.toLowerCase();" +
-            "      var index = 1;" +
+            "    try {" +
+            "      var xpath = '';" +
+            "      var current = element;" +
             "      " +
-            "      if (current.previousSibling) {" +
-            "        var sibling = current.previousSibling;" +
-            "        while (sibling) {" +
-            "          if (sibling.nodeType === Node.ELEMENT_NODE && sibling.tagName === current.tagName) {" +
-            "            index++;" +
+            "      while (current && current.nodeType === Node.ELEMENT_NODE) {" +
+            "        var tagName = current.tagName.toLowerCase();" +
+            "        var index = 1;" +
+            "        " +
+            "        if (current.previousSibling) {" +
+            "          var sibling = current.previousSibling;" +
+            "          while (sibling) {" +
+            "            if (sibling.nodeType === Node.ELEMENT_NODE && sibling.tagName === current.tagName) {" +
+            "              index++;" +
+            "            }" +
+            "            sibling = sibling.previousSibling;" +
             "          }" +
-            "          sibling = sibling.previousSibling;" +
             "        }" +
+            "        " +
+            "        xpath = '/' + tagName + '[' + index + ']' + xpath;" +
+            "        current = current.parentElement;" +
             "      }" +
             "      " +
-            "      xpath = '/' + tagName + '[' + index + ']' + xpath;" +
-            "      current = current.parentElement;" +
+            "      return xpath;" +
+            "    } catch (e) {" +
+            "      return '/unknown';" +
             "    }" +
-            "    " +
-            "    return xpath;" +
             "  }," +
             "  " +
             "  getBestSelector: function(element) {" +
-            "    var cssSelector = this.generateCSSSelector(element);" +
-            "    var xpathSelector = this.generateXPathSelector(element);" +
-            "    " +
-            "    // Prefer CSS selector, fallback to XPath" +
-            "    return {" +
-            "      css: cssSelector," +
-            "      xpath: xpathSelector," +
-            "      recommended: cssSelector.length > 0 ? cssSelector : xpathSelector" +
-            "    };" +
+            "    try {" +
+            "      var cssSelector = this.generateCSSSelector(element);" +
+            "      var xpathSelector = this.generateXPathSelector(element);" +
+            "      " +
+            "      return {" +
+            "        css: cssSelector," +
+            "        xpath: xpathSelector," +
+            "        recommended: cssSelector.length > 0 ? cssSelector : xpathSelector" +
+            "      };" +
+            "    } catch (e) {" +
+            "      return { css: 'error', xpath: 'error', recommended: 'error' };" +
+            "    }" +
             "  }" +
             "};" +
             "" +
             "function handleLongPress(x, y) {" +
-            "  var element = document.elementFromPoint(x, y);" +
-            "  if (element) {" +
-            "    var selectors = elementFinderBrowser.getBestSelector(element);" +
-            "    Android.showSelectorDialog(JSON.stringify(selectors));" +
+            "  try {" +
+            "    var element = document.elementFromPoint(x, y);" +
+            "    if (element) {" +
+            "      var selectors = elementFinderBrowser.getBestSelector(element);" +
+            "      Android.showSelectorDialog(JSON.stringify(selectors));" +
+            "    }" +
+            "  } catch (e) {" +
+            "    console.error('Error in handleLongPress:', e);" +
             "  }" +
             "}" +
             "" +
             "function recordClick(x, y) {" +
-            "  var element = document.elementFromPoint(x, y);" +
-            "  if (element) {" +
-            "    var selectors = elementFinderBrowser.getBestSelector(element);" +
-            "    Android.recordSelector(selectors.recommended);" +
+            "  try {" +
+            "    var element = document.elementFromPoint(x, y);" +
+            "    if (element) {" +
+            "      var selectors = elementFinderBrowser.getBestSelector(element);" +
+            "      Android.recordSelector(selectors.recommended);" +
+            "    }" +
+            "  } catch (e) {" +
+            "    console.error('Error in recordClick:', e);" +
             "  }" +
             "}";
     }
@@ -273,10 +352,12 @@ public class WebViewActivity extends AppCompatActivity {
     @Override
     public boolean onPrepareOptionsMenu(Menu menu) {
         MenuItem recordItem = menu.findItem(R.id.action_record_macro);
-        if (isRecordingMacro) {
-            recordItem.setTitle("Stop Macro");
-        } else {
-            recordItem.setTitle("Record Macro");
+        if (recordItem != null) {
+            if (isRecordingMacro) {
+                recordItem.setTitle("Stop Macro");
+            } else {
+                recordItem.setTitle("Record Macro");
+            }
         }
         return super.onPrepareOptionsMenu(menu);
     }
@@ -285,15 +366,20 @@ public class WebViewActivity extends AppCompatActivity {
     public boolean onOptionsItemSelected(MenuItem item) {
         int id = item.getItemId();
         
-        if (id == android.R.id.home) {
-            onBackPressed();
-            return true;
-        } else if (id == R.id.action_record_macro) {
-            toggleMacroRecording();
-            return true;
-        } else if (id == R.id.action_desktop_mode) {
-            toggleDesktopMode();
-            return true;
+        try {
+            if (id == android.R.id.home) {
+                onBackPressed();
+                return true;
+            } else if (id == R.id.action_record_macro) {
+                toggleMacroRecording();
+                return true;
+            } else if (id == R.id.action_desktop_mode) {
+                toggleDesktopMode();
+                return true;
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error in menu selection", e);
+            Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
         
         return super.onOptionsItemSelected(item);
@@ -322,21 +408,24 @@ public class WebViewActivity extends AppCompatActivity {
     }
     
     private void toggleDesktopMode() {
-        WebSettings webSettings = webView.getSettings();
-        String currentUserAgent = webSettings.getUserAgentString();
-        
-        if (currentUserAgent.contains("Mobile")) {
-            // Switch to desktop mode
-            String desktopUserAgent = currentUserAgent.replace("Mobile", "X11; Linux x86_64");
-            webSettings.setUserAgentString(desktopUserAgent);
-            Toast.makeText(this, "Desktop mode enabled", Toast.LENGTH_SHORT).show();
-        } else {
-            // Switch back to mobile mode
-            webSettings.setUserAgentString(WebSettings.getDefaultUserAgent(this));
-            Toast.makeText(this, "Mobile mode enabled", Toast.LENGTH_SHORT).show();
+        try {
+            WebSettings webSettings = webView.getSettings();
+            String currentUserAgent = webSettings.getUserAgentString();
+            
+            if (currentUserAgent.contains("Mobile")) {
+                String desktopUserAgent = currentUserAgent.replace("Mobile", "X11; Linux x86_64");
+                webSettings.setUserAgentString(desktopUserAgent);
+                Toast.makeText(this, "Desktop mode enabled", Toast.LENGTH_SHORT).show();
+            } else {
+                webSettings.setUserAgentString(WebSettings.getDefaultUserAgent(this));
+                Toast.makeText(this, "Mobile mode enabled", Toast.LENGTH_SHORT).show();
+            }
+            
+            webView.reload();
+        } catch (Exception e) {
+            Log.e(TAG, "Error toggling desktop mode", e);
+            Toast.makeText(this, "Error toggling desktop mode", Toast.LENGTH_SHORT).show();
         }
-        
-        webView.reload();
     }
     
     private void saveMacroToFile() {
@@ -369,6 +458,7 @@ public class WebViewActivity extends AppCompatActivity {
             Toast.makeText(this, "Macro saved: " + macroFile.getName(), Toast.LENGTH_LONG).show();
             
         } catch (IOException e) {
+            Log.e(TAG, "Error saving macro", e);
             Toast.makeText(this, "Error saving macro: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
@@ -387,6 +477,7 @@ public class WebViewActivity extends AppCompatActivity {
                         
                         showSelectorChoiceDialog(css, xpath, recommended);
                     } catch (Exception e) {
+                        Log.e(TAG, "Error parsing selectors", e);
                         Toast.makeText(WebViewActivity.this, "Error parsing selectors", Toast.LENGTH_SHORT).show();
                     }
                 }
@@ -395,7 +486,7 @@ public class WebViewActivity extends AppCompatActivity {
         
         @JavascriptInterface
         public void recordSelector(String selector) {
-            if (isRecordingMacro && !selector.isEmpty()) {
+            if (isRecordingMacro && selector != null && !selector.isEmpty()) {
                 recordedSelectors.add(selector);
                 runOnUiThread(new Runnable() {
                     @Override
@@ -408,51 +499,82 @@ public class WebViewActivity extends AppCompatActivity {
     }
     
     private void showSelectorChoiceDialog(String css, String xpath, String recommended) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Element Selectors");
-        
-        String message = "Recommended: " + recommended + "\n\n";
-        if (!css.isEmpty()) {
-            message += "CSS Selector: " + css + "\n\n";
-        }
-        if (!xpath.isEmpty()) {
-            message += "XPath Selector: " + xpath;
-        }
-        
-        builder.setMessage(message);
-        
-        builder.setPositiveButton("Copy Recommended", (dialog, which) -> {
-            copyToClipboard("Recommended Selector", recommended);
-        });
-        
-        if (!css.isEmpty()) {
-            builder.setNeutralButton("Copy CSS", (dialog, which) -> {
-                copyToClipboard("CSS Selector", css);
+        try {
+            AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            builder.setTitle("Element Selectors");
+            
+            String message = "Recommended: " + recommended + "\n\n";
+            if (!css.isEmpty()) {
+                message += "CSS Selector: " + css + "\n\n";
+            }
+            if (!xpath.isEmpty()) {
+                message += "XPath Selector: " + xpath;
+            }
+            
+            builder.setMessage(message);
+            
+            builder.setPositiveButton("Copy Recommended", (dialog, which) -> {
+                copyToClipboard("Recommended Selector", recommended);
             });
+            
+            if (!css.isEmpty()) {
+                builder.setNeutralButton("Copy CSS", (dialog, which) -> {
+                    copyToClipboard("CSS Selector", css);
+                });
+            }
+            
+            if (!xpath.isEmpty()) {
+                builder.setNegativeButton("Copy XPath", (dialog, which) -> {
+                    copyToClipboard("XPath Selector", xpath);
+                });
+            }
+            
+            builder.show();
+        } catch (Exception e) {
+            Log.e(TAG, "Error showing selector dialog", e);
+            Toast.makeText(this, "Error showing selector dialog", Toast.LENGTH_SHORT).show();
         }
-        
-        if (!xpath.isEmpty()) {
-            builder.setNegativeButton("Copy XPath", (dialog, which) -> {
-                copyToClipboard("XPath Selector", xpath);
-            });
-        }
-        
-        builder.show();
     }
     
     private void copyToClipboard(String label, String text) {
-        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-        ClipData clip = ClipData.newPlainText(label, text);
-        clipboard.setPrimaryClip(clip);
-        Toast.makeText(this, label + " copied to clipboard", Toast.LENGTH_SHORT).show();
+        try {
+            ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            ClipData clip = ClipData.newPlainText(label, text);
+            clipboard.setPrimaryClip(clip);
+            Toast.makeText(this, label + " copied to clipboard", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Log.e(TAG, "Error copying to clipboard", e);
+            Toast.makeText(this, "Error copying to clipboard", Toast.LENGTH_SHORT).show();
+        }
     }
     
     @Override
     public void onBackPressed() {
-        if (webView.canGoBack()) {
-            webView.goBack();
-        } else {
+        try {
+            if (webView != null && webView.canGoBack()) {
+                webView.goBack();
+            } else {
+                super.onBackPressed();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error in onBackPressed", e);
             super.onBackPressed();
         }
+    }
+    
+    @Override
+    protected void onDestroy() {
+        try {
+            if (longPressHandler != null && longPressRunnable != null) {
+                longPressHandler.removeCallbacks(longPressRunnable);
+            }
+            if (webView != null) {
+                webView.removeJavascriptInterface("Android");
+                webView.destroy();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error in onDestroy", e);
+        }
+        super.onDestroy();
     }
 }
