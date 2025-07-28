@@ -28,6 +28,19 @@ import androidx.appcompat.widget.Toolbar;
 public class BrowserActivity extends AppCompatActivity {
     
     private static final String TAG = "BrowserActivity";
+    
+    // Tab information class
+    public static class TabInfo {
+        public String url;
+        public String title;
+        public boolean isActive;
+        
+        public TabInfo(String url, String title, boolean isActive) {
+            this.url = url;
+            this.title = title;
+            this.isActive = isActive;
+        }
+    }
     private WebView webView;
     private EditText addressBar;
     private ImageButton backButton, forwardButton, refreshButton, homeButton;
@@ -53,6 +66,7 @@ public class BrowserActivity extends AppCompatActivity {
         private int tabCount = 1;
         private View tabCounterView;
         private TextView tabCountText;
+        private java.util.List<TabInfo> tabList;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -81,6 +95,13 @@ public class BrowserActivity extends AppCompatActivity {
         sessionManager = SessionManager.getInstance(this);
         adManager = AdManager.getInstance(this);
         urlStack = new java.util.ArrayList<>();
+        tabList = new java.util.ArrayList<>();
+        
+        // Initialize with first tab
+        String initialUrl = getIntent().getStringExtra("url");
+        if (initialUrl != null) {
+            tabList.add(new TabInfo(initialUrl, "New Tab", true));
+        }
     }
     
     private void setupToolbar() {
@@ -775,6 +796,10 @@ public class BrowserActivity extends AppCompatActivity {
             progressBar.setVisibility(View.GONE);
             updateNavigationButtons();
             
+            // Update current tab info
+            String title = view.getTitle();
+            updateCurrentTabInfo(url, title);
+            
             // Add URL to stack for session history
             if (url != null && !urlStack.contains(url)) {
                 urlStack.add(url);
@@ -804,7 +829,6 @@ public class BrowserActivity extends AppCompatActivity {
             enhancePageInteraction();
             
             // Add to history
-            String title = view.getTitle();
             if (title != null && !title.isEmpty()) {
                 historyManager.addHistoryItem(title, url);
             }
@@ -1126,9 +1150,17 @@ public class BrowserActivity extends AppCompatActivity {
     }
     
     private void createNewTab() {
-        // For now, just load Google in current tab (simplified tab implementation)
-        loadNewUrl("https://www.google.com");
-        Toast.makeText(this, "New tab opened", Toast.LENGTH_SHORT).show();
+        // Add new tab to list
+        String newTabUrl = "https://www.google.com";
+        tabList.add(new TabInfo(newTabUrl, "Google", false));
+        tabCount = tabList.size();
+        
+        // Update counter
+        updateTabCounter();
+        
+        // Load URL in current WebView (simplified implementation)
+        loadNewUrl(newTabUrl);
+        Toast.makeText(this, "New tab created (" + tabCount + " tabs)", Toast.LENGTH_SHORT).show();
     }
     
     private void updateTabCounter() {
@@ -1138,6 +1170,11 @@ public class BrowserActivity extends AppCompatActivity {
     }
     
     private void showTabSwitcher() {
+        if (tabList.isEmpty()) {
+            Toast.makeText(this, "No tabs available", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
         androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
         
         // Inflate tab switcher layout
@@ -1163,33 +1200,68 @@ public class BrowserActivity extends AppCompatActivity {
         
         closeButton.setOnClickListener(v -> dialog.dismiss());
         
-        // For now, show simple tab info (can be enhanced later with RecyclerView)
+        // Create tab list dynamically
         androidx.recyclerview.widget.RecyclerView tabsRecyclerView = dialogView.findViewById(R.id.tabs_recycler_view);
         
-        // Simple implementation - create a TextView showing current tab info
-        LinearLayout simpleTabList = new LinearLayout(this);
-        simpleTabList.setOrientation(LinearLayout.VERTICAL);
+        // Simple implementation - create LinearLayout with tab items
+        LinearLayout tabListContainer = new LinearLayout(this);
+        tabListContainer.setOrientation(LinearLayout.VERTICAL);
         
-        // Current tab info
-        TextView currentTabInfo = new TextView(this);
-        currentTabInfo.setText("🌐 " + (webView.getTitle() != null ? webView.getTitle() : "Current Tab"));
-        currentTabInfo.setTextColor(getResources().getColor(android.R.color.white));
-        currentTabInfo.setTextSize(16);
-        currentTabInfo.setPadding(16, 16, 16, 16);
-        currentTabInfo.setBackground(getResources().getDrawable(R.drawable.button_background));
-        currentTabInfo.setClickable(true);
-        currentTabInfo.setOnClickListener(v -> {
-            dialog.dismiss();
-            // Current tab is already active
-        });
+        for (int i = 0; i < tabList.size(); i++) {
+            TabInfo tab = tabList.get(i);
+            
+            TextView tabItem = new TextView(this);
+            String tabText = (i + 1) + ". " + (tab.title != null ? tab.title : "Tab") + 
+                           (tab.isActive ? " (Active)" : "");
+            tabItem.setText(tabText);
+            tabItem.setTextColor(getResources().getColor(android.R.color.white));
+            tabItem.setTextSize(16);
+            tabItem.setPadding(16, 12, 16, 12);
+            tabItem.setBackground(getResources().getDrawable(R.drawable.button_background));
+            tabItem.setClickable(true);
+            
+            // Set margin
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            );
+            params.setMargins(0, 8, 0, 8);
+            tabItem.setLayoutParams(params);
+            
+            // Handle tab click
+            final int tabIndex = i;
+            tabItem.setOnClickListener(v -> {
+                dialog.dismiss();
+                switchToTab(tabIndex);
+            });
+            
+            tabListContainer.addView(tabItem);
+        }
         
-        simpleTabList.addView(currentTabInfo);
-        
-        // Replace RecyclerView with simple LinearLayout for now
+        // Replace RecyclerView with LinearLayout
         ((LinearLayout) tabsRecyclerView.getParent()).removeView(tabsRecyclerView);
-        ((LinearLayout) dialogView).addView(simpleTabList, 1);
+        ((LinearLayout) dialogView).addView(tabListContainer, 1);
         
         dialog.show();
+    }
+    
+    private void switchToTab(int tabIndex) {
+        if (tabIndex >= 0 && tabIndex < tabList.size()) {
+            // Mark all tabs as inactive
+            for (TabInfo tab : tabList) {
+                tab.isActive = false;
+            }
+            
+            // Mark selected tab as active
+            TabInfo selectedTab = tabList.get(tabIndex);
+            selectedTab.isActive = true;
+            
+            // Load the tab's URL
+            if (selectedTab.url != null && !selectedTab.url.isEmpty()) {
+                loadNewUrl(selectedTab.url);
+                Toast.makeText(this, "Switched to: " + selectedTab.title, Toast.LENGTH_SHORT).show();
+            }
+        }
     }
     
     private void expandAddressBar() {
@@ -1222,5 +1294,16 @@ public class BrowserActivity extends AppCompatActivity {
             .scaleY(1.0f)
             .setDuration(200)
             .start();
+    }
+    
+    private void updateCurrentTabInfo(String url, String title) {
+        // Update the active tab's information
+        for (TabInfo tab : tabList) {
+            if (tab.isActive) {
+                tab.url = url;
+                tab.title = title != null ? title : "Loading...";
+                break;
+            }
+        }
     }
 }

@@ -116,8 +116,13 @@ public class AdManager {
                     Log.d(TAG, "Interstitial ad dismissed");
                     interstitialAd = null;
                     loadInterstitialAd(); // Load next ad
-                    if (onAdClosed != null) {
-                        onAdClosed.run();
+                    
+                    try {
+                        if (onAdClosed != null) {
+                            onAdClosed.run();
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error in interstitial callback", e);
                     }
                 }
                 
@@ -125,18 +130,34 @@ public class AdManager {
                 public void onAdFailedToShowFullScreenContent(AdError adError) {
                     Log.e(TAG, "Interstitial ad failed to show: " + adError.getMessage());
                     interstitialAd = null;
-                    if (onAdClosed != null) {
-                        onAdClosed.run();
+                    
+                    try {
+                        if (onAdClosed != null) {
+                            onAdClosed.run();
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error in interstitial failure callback", e);
                     }
                 }
             });
             
-            interstitialAd.show(activity);
-            lastInterstitialTime = System.currentTimeMillis();
+            try {
+                interstitialAd.show(activity);
+                lastInterstitialTime = System.currentTimeMillis();
+            } catch (Exception e) {
+                Log.e(TAG, "Error showing interstitial ad", e);
+                if (onAdClosed != null) {
+                    onAdClosed.run();
+                }
+            }
         } else {
             Log.d(TAG, "Interstitial ad not ready, proceeding without ad");
-            if (onAdClosed != null) {
-                onAdClosed.run();
+            try {
+                if (onAdClosed != null) {
+                    onAdClosed.run();
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error in interstitial not ready callback", e);
             }
         }
     }
@@ -182,14 +203,24 @@ public class AdManager {
                     Log.d(TAG, "Rewarded ad dismissed");
                     rewardedAd = null;
                     loadRewardedAd(); // Load next ad
-                    callback.onAdClosed(rewardEarned[0]);
+                    
+                    try {
+                        callback.onAdClosed(rewardEarned[0]);
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error in reward callback", e);
+                    }
                 }
                 
                 @Override
                 public void onAdFailedToShowFullScreenContent(AdError adError) {
                     Log.e(TAG, "Rewarded ad failed to show: " + adError.getMessage());
                     rewardedAd = null;
-                    callback.onAdFailedToShow();
+                    
+                    try {
+                        callback.onAdFailedToShow();
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error in failure callback", e);
+                    }
                 }
             });
             
@@ -198,12 +229,21 @@ public class AdManager {
                 public void onUserEarnedReward(RewardItem rewardItem) {
                     Log.d(TAG, "User earned reward: " + rewardItem.getType() + " - " + rewardItem.getAmount());
                     rewardEarned[0] = true;
-                    callback.onUserEarnedReward();
+                    
+                    try {
+                        callback.onUserEarnedReward();
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error in reward earned callback", e);
+                    }
                 }
             });
         } else {
             Log.d(TAG, "Rewarded ad not ready");
-            callback.onAdFailedToShow();
+            try {
+                callback.onAdFailedToShow();
+            } catch (Exception e) {
+                Log.e(TAG, "Error in not ready callback", e);
+            }
         }
     }
     

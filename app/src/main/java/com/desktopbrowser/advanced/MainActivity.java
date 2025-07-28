@@ -154,6 +154,27 @@ public class MainActivity extends AppCompatActivity {
         // Set drawable padding for better icon positioning
         button.setCompoundDrawablePadding(12);
         
+        // Add click listener to button as well for better responsiveness
+        button.setOnClickListener(v -> {
+            // Show interstitial ad before opening quick access sites
+            try {
+                adManager.showQuickAccessAd(MainActivity.this, () -> {
+                    if (url != null && !url.isEmpty()) {
+                        openUrl(url);
+                    } else {
+                        Toast.makeText(MainActivity.this, "URL not available", Toast.LENGTH_SHORT).show();
+                    }
+                });
+            } catch (Exception e) {
+                // Fallback: open URL directly if ad fails
+                if (url != null && !url.isEmpty()) {
+                    openUrl(url);
+                } else {
+                    Toast.makeText(MainActivity.this, "URL not available", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+        
         card.addView(button);
         
         card.setOnClickListener(v -> {
@@ -302,6 +323,13 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void handleOpenLastSession() {
+        // Check if session exists BEFORE showing ads
+        if (!sessionManager.hasLastSession()) {
+            showSessionNotFoundDialog("No Previous Session Found", 
+                "You haven't browsed any websites yet. Start browsing to create sessions that can be restored later!");
+            return;
+        }
+        
         if (sessionManager.isPremiumActive()) {
             // User has premium access, restore session directly
             restoreLastSession();
@@ -313,8 +341,20 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void handleRecentSession() {
+        // Check if recent session exists BEFORE showing ads
+        if (!sessionManager.hasRecentSession()) {
+            showSessionNotFoundDialog("No Recent Session Found", 
+                "You need to browse some websites first, then press the Home button to create a recent session. Come back here after that!");
+            return;
+        }
+        
         // Show interstitial ad before opening recent session
-        adManager.showRecentSessionAd(this, this::restoreRecentSession);
+        try {
+            adManager.showRecentSessionAd(this, this::restoreRecentSession);
+        } catch (Exception e) {
+            // Fallback if ad fails
+            restoreRecentSession();
+        }
     }
     
     private void restoreLastSession() {
@@ -407,6 +447,37 @@ public class MainActivity extends AppCompatActivity {
         } else {
             cancelButton.setVisibility(android.view.View.GONE);
         }
+        
+        dialog.show();
+    }
+    
+    private void showSessionNotFoundDialog(String title, String message) {
+        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
+        
+        // Inflate custom layout
+        android.view.LayoutInflater inflater = getLayoutInflater();
+        android.view.View dialogView = inflater.inflate(R.layout.dialog_premium_reward, null);
+        builder.setView(dialogView);
+        
+        // Customize for session not found
+        TextView messageView = dialogView.findViewById(R.id.premium_message);
+        messageView.setText(message);
+        
+        androidx.appcompat.app.AlertDialog dialog = builder.create();
+        dialog.setCancelable(true);
+        
+        // Set transparent background
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        }
+        
+        // Handle buttons - hide watch ad button, show only OK
+        Button watchAdButton = dialogView.findViewById(R.id.btn_watch_ad);
+        Button cancelButton = dialogView.findViewById(R.id.btn_cancel);
+        
+        watchAdButton.setVisibility(android.view.View.GONE);
+        cancelButton.setText("Got It!");
+        cancelButton.setOnClickListener(v -> dialog.dismiss());
         
         dialog.show();
     }
