@@ -18,6 +18,7 @@ import android.webkit.WebViewClient;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
@@ -221,7 +222,7 @@ public class BrowserActivity extends AppCompatActivity {
                 // Implement smooth scrolling behavior
                 if (Math.abs(scrollY - oldScrollY) > 50) {
                     // Large scroll detected, make it smoother
-                    webView.smoothScrollBy(0, (scrollY - oldScrollY) / 2);
+                    webView.scrollBy(0, (scrollY - oldScrollY) / 2);
                 }
             }
         });
@@ -608,23 +609,6 @@ public class BrowserActivity extends AppCompatActivity {
             }
             invalidateOptionsMenu();
         }
-    }
-    
-    private void toggleDesktopMode() {
-        isDesktopMode = !isDesktopMode;
-        
-        WebSettings webSettings = webView.getSettings();
-        if (isDesktopMode) {
-            enableAdvancedDesktopMode();
-            Toast.makeText(this, "🖥️ Advanced Desktop Mode Enabled", Toast.LENGTH_SHORT).show();
-        } else {
-            // Mobile mode
-            String mobileUserAgent = "Mozilla/5.0 (Linux; Android 14; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36";
-            webSettings.setUserAgentString(mobileUserAgent);
-            Toast.makeText(this, "📱 Mobile Mode Enabled", Toast.LENGTH_SHORT).show();
-        }
-        
-        webView.reload();
     }
     
     private void openHistory() {
