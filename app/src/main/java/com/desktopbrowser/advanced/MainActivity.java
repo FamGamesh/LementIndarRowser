@@ -357,6 +357,36 @@ public class MainActivity extends AppCompatActivity {
         startActivity(intent);
     }
     
+    private void showPremiumRewardedAdDialog(String message, Runnable onSuccess) {
+        new AlertDialog.Builder(this)
+            .setTitle("Premium Feature")
+            .setMessage(message)
+            .setPositiveButton("Watch Ad", (dialog, which) -> {
+                adManager.showRewardedAd(this, new AdManager.RewardedAdCallback() {
+                    @Override
+                    public void onUserEarnedReward() {
+                        // Grant 1 hour premium access
+                        sessionManager.grantPremiumAccess(60 * 60 * 1000); // 1 hour
+                        Toast.makeText(MainActivity.this, "Premium features unlocked for 1 hour!", Toast.LENGTH_SHORT).show();
+                    }
+                    
+                    @Override
+                    public void onAdFailedToShow() {
+                        Toast.makeText(MainActivity.this, "Ad failed to load. Try again later.", Toast.LENGTH_SHORT).show();
+                    }
+                    
+                    @Override
+                    public void onAdClosed(boolean earnedReward) {
+                        if (earnedReward) {
+                            onSuccess.run();
+                        }
+                    }
+                });
+            })
+            .setNegativeButton("Cancel", null)
+            .show();
+    }
+    
     @Override
     protected void onResume() {
         super.onResume();

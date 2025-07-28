@@ -20,6 +20,8 @@ import android.widget.ImageButton;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.LinearLayout;
+import android.widget.Button;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 
@@ -951,15 +953,6 @@ public class BrowserActivity extends AppCompatActivity {
     }
     
     @Override
-    public void onBackPressed() {
-        if (webView.canGoBack()) {
-            webView.goBack();
-        } else {
-            super.onBackPressed();
-        }
-    }
-    
-    @Override
     protected void onDestroy() {
         if (webView != null) {
             // Save session before destroying (for app close recovery)
@@ -1100,16 +1093,5 @@ public class BrowserActivity extends AppCompatActivity {
         // For now, just load Google in current tab (simplified tab implementation)
         loadNewUrl("https://www.google.com");
         Toast.makeText(this, "New tab opened", Toast.LENGTH_SHORT).show();
-    }
-    
-    @Override
-    public void onBackPressed() {
-        if (webView.canGoBack()) {
-            webView.goBack();
-        } else {
-            // Save session before closing
-            saveCurrentSessionAsLast();
-            super.onBackPressed();
-        }
     }
 }
