@@ -561,7 +561,6 @@ public class WebViewActivity extends AppCompatActivity {
             "  console.log('Element Finder Browser: Script already loaded');" +
             "}";
     }
-    }
     
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
