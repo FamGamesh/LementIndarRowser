@@ -1,8 +1,10 @@
 package com.desktopbrowser.advanced;
 
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
+import android.view.ContextThemeWrapper;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 import android.widget.Button;
@@ -272,12 +274,23 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private String processInput(String input) {
-        if (input.startsWith("http://") || input.startsWith("https://")) {
-            return input;
-        } else if (input.contains(".") && !input.contains(" ") && input.length() > 3) {
-            return "https://" + input;
-        } else {
-            return "https://www.google.com/search?q=" + android.net.Uri.encode(input);
+        try {
+            if (input == null || input.trim().isEmpty()) {
+                return "https://www.google.com";
+            }
+            
+            input = input.trim();
+            
+            if (input.startsWith("http://") || input.startsWith("https://")) {
+                return input;
+            } else if (input.contains(".") && !input.contains(" ") && input.length() > 3) {
+                return "https://" + input;
+            } else {
+                return "https://www.google.com/search?q=" + Uri.encode(input);
+            }
+        } catch (Exception e) {
+            // Fallback to google search if encoding fails
+            return "https://www.google.com/search?q=" + input.replace(" ", "+");
         }
     }
     
@@ -296,8 +309,9 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void showNavigationMenu() {
-        // Create dropdown menu with navigation options
-        android.widget.PopupMenu popupMenu = new android.widget.PopupMenu(this, menuButton);
+        // Create dropdown menu with navigation options using custom theme for white text
+        ContextThemeWrapper contextThemeWrapper = new ContextThemeWrapper(this, R.style.CustomPopupMenuStyle);
+        android.widget.PopupMenu popupMenu = new android.widget.PopupMenu(contextThemeWrapper, menuButton);
         popupMenu.getMenuInflater().inflate(R.menu.main_navigation_menu, popupMenu.getMenu());
         
         popupMenu.setOnMenuItemClickListener(item -> {
