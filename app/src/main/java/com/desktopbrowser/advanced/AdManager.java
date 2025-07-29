@@ -220,11 +220,11 @@ public class AdManager {
         // Execute callback IMMEDIATELY when ad is dismissed
         executeCallbackImmediately("success");
         
-        // Use handler for cleanup tasks (but not callback execution)
+        // ENHANCED: Immediate state reset and aggressive ad reload
         android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
-        mainHandler.postDelayed(() -> {
+        mainHandler.post(() -> {
             try {
-                // Reset state flags
+                // Reset state flags immediately
                 isShowingInterstitial = false;
                 
                 // Clear callback reference to prevent leaks
@@ -232,37 +232,58 @@ public class AdManager {
                 interstitialAd = null;
                 currentOnAdClosedCallback = null;
                 
-                // Load next ad
-                loadInterstitialAd();
-                
-                Log.d(TAG, "✅ Intelligent interstitial cleanup completed successfully - Context: " + currentAdContext);
+                Log.d(TAG, "✅ Immediate interstitial cleanup completed - Context: " + currentAdContext);
                 currentAdContext = "";
                 
             } catch (Exception e) {
-                Log.e(TAG, "💥 Error in intelligent interstitial cleanup", e);
+                Log.e(TAG, "💥 Error in immediate interstitial cleanup", e);
                 forceResetInterstitialState();
             }
-        }, 500); // Reduced delay since callback is executed immediately
+        });
+        
+        // ENHANCED: Aggressive ad reload with shorter delay
+        mainHandler.postDelayed(() -> {
+            try {
+                Log.d(TAG, "🔄 Starting aggressive ad reload");
+                loadInterstitialAd();
+            } catch (Exception e) {
+                Log.e(TAG, "💥 Error in aggressive ad reload", e);
+                // Try again with longer delay if failed
+                mainHandler.postDelayed(() -> loadInterstitialAd(), 2000);
+            }
+        }, 100); // Much shorter delay for faster reload
     }
     
-    // INTELLIGENT FAILURE HANDLER
+    // ENHANCED FAILURE HANDLER
     private void handleInterstitialAdFailure() {
         Log.d(TAG, "🔧 Handling interstitial ad failure - Context: " + currentAdContext);
         
         // Execute callback IMMEDIATELY for failures
         executeCallbackImmediately("failure");
         
-        // Immediate cleanup for failures since no ad is showing
-        isShowingInterstitial = false;
-        currentInterstitialCallback = null;
-        interstitialAd = null;
-        currentOnAdClosedCallback = null;
+        // ENHANCED: Immediate cleanup for failures since no ad is showing
+        android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+        mainHandler.post(() -> {
+            isShowingInterstitial = false;
+            currentInterstitialCallback = null;
+            interstitialAd = null;
+            currentOnAdClosedCallback = null;
+            
+            Log.d(TAG, "✅ Immediate failure cleanup completed - Context: " + currentAdContext);
+            currentAdContext = "";
+        });
         
-        // Load new ad
-        loadInterstitialAd();
-        
-        Log.d(TAG, "✅ Interstitial failure handled - Context: " + currentAdContext);
-        currentAdContext = "";
+        // ENHANCED: Immediate ad reload after failure
+        mainHandler.postDelayed(() -> {
+            try {
+                Log.d(TAG, "🔄 Reloading ad after failure");
+                loadInterstitialAd();
+            } catch (Exception e) {
+                Log.e(TAG, "💥 Error reloading ad after failure", e);
+                // Fallback reload with longer delay
+                mainHandler.postDelayed(() -> loadInterstitialAd(), 3000);
+            }
+        }, 200);
     }
     
     // IMMEDIATE CALLBACK EXECUTION (No delays)

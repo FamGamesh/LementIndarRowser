@@ -271,13 +271,19 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void openHistory() {
-        Intent intent = new Intent(this, HistoryActivity.class);
-        startActivity(intent);
+        // Show interstitial ad before opening history
+        adManager.showInterstitialAd(this, "History", () -> {
+            Intent intent = new Intent(this, HistoryActivity.class);
+            startActivity(intent);
+        });
     }
     
     private void openBookmarks() {
-        Intent intent = new Intent(this, BookmarksActivity.class);
-        startActivity(intent);
+        // Show interstitial ad before opening bookmarks
+        adManager.showInterstitialAd(this, "Bookmarks", () -> {
+            Intent intent = new Intent(this, BookmarksActivity.class);
+            startActivity(intent);
+        });
     }
     
     private void openDownloads() {
@@ -445,8 +451,11 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void openSettings() {
-        Intent intent = new Intent(this, SettingsActivity.class);
-        startActivity(intent);
+        // Show interstitial ad before opening settings
+        adManager.showInterstitialAd(this, "Settings", () -> {
+            Intent intent = new Intent(this, SettingsActivity.class);
+            startActivity(intent);
+        });
     }
     
     private void showPremiumRewardedAdDialog(String message, Runnable onSuccess) {

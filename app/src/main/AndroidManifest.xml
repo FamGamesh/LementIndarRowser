@@ -53,6 +53,11 @@
             android:exported="false"
             android:theme="@style/Theme.AdvancedDesktopBrowser.NoActionBar" />
 
+        <activity
+            android:name="com.desktopbrowser.advanced.DownloadsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AdvancedDesktopBrowser.NoActionBar" />
+
         <!-- FileProvider for browser downloads -->
         <provider
             android:name="androidx.core.content.FileProvider"
