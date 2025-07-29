@@ -21,6 +21,11 @@
         android:id="@+id/menu_home"
         android:title="🏠 Home"
         android:icon="@drawable/ic_home" />
+        
+    <item
+        android:id="@+id/menu_desktop_mode"
+        android:title="🖥️ Desktop Mode"
+        android:icon="@drawable/ic_desktop_browser" />
     
     <!-- Separator -->
     <group android:id="@+id/separator1">

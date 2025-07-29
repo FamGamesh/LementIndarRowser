@@ -145,7 +145,6 @@ public class BrowserActivity extends AppCompatActivity {
         browserMenuButton = findViewById(R.id.btn_browser_menu);
         zoomInButton = findViewById(R.id.btn_zoom_in);
         zoomOutButton = findViewById(R.id.btn_zoom_out);
-        desktopModeButton = findViewById(R.id.btn_desktop_mode);
         zoomLevel = findViewById(R.id.zoom_level);
         progressBar = findViewById(R.id.progress_bar);
         
@@ -964,6 +963,9 @@ public class BrowserActivity extends AppCompatActivity {
                 startActivity(intent);
                 finish();
                 return true;
+            } else if (id == R.id.menu_desktop_mode) {
+                toggleDesktopMode();
+                return true;
             } else if (id == R.id.menu_history) {
                 openHistory();
                 return true;
@@ -1662,20 +1664,7 @@ public class BrowserActivity extends AppCompatActivity {
         }
     }
     
-    private void openHistory() {
-        Intent intent = new Intent(this, HistoryActivity.class);
-        startActivity(intent);
-    }
-    
-    private void openBookmarks() {
-        Intent intent = new Intent(this, BookmarksActivity.class);
-        startActivity(intent);
-    }
-    
-    private void openSettings() {
-        Intent intent = new Intent(this, SettingsActivity.class);
-        startActivity(intent);
-    }
+
     
     @Override
     protected void onDestroy() {
