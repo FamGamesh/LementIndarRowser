@@ -186,6 +186,52 @@
 
             </LinearLayout>
 
+        </androidx.cardview.widget.CardView>
+
+        <!-- Error Logs Section -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardElevation="4dp"
+            app:cardCornerRadius="8dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="🔧 Debugging"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/text_primary"
+                    android:layout_marginBottom="8dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="View and manage error logs for troubleshooting"
+                    android:textSize="14sp"
+                    android:textColor="@color/text_secondary"
+                    android:layout_marginBottom="12dp" />
+
+                <Button
+                    android:id="@+id/btn_error_logs"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="📋 View Error Logs"
+                    android:background="@drawable/button_background"
+                    android:textColor="@android:color/white"
+                    android:padding="12dp" />
+
+            </LinearLayout>
+
+        </androidx.cardview.widget.CardView>
+
         </LinearLayout>
 
     </ScrollView>

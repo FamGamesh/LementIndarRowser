@@ -54,6 +54,10 @@ public class MainActivity extends AppCompatActivity {
             
         } catch (Exception e) {
             Toast.makeText(this, "Error initializing app: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            
+            // Log the initialization error
+            ErrorLogger.logError(this, "INIT_ERROR", e);
+            
             e.printStackTrace();
         }
     }
@@ -256,6 +260,10 @@ public class MainActivity extends AppCompatActivity {
             
         } catch (Exception e) {
             android.util.Log.e("MainActivity", "Error in handleBrowse", e);
+            
+            // Log the error to file
+            ErrorLogger.logError(this, "BROWSE_ERROR", e);
+            
             // Fallback - try to open URL directly without ads
             try {
                 String input = urlEditText.getText().toString().trim();
@@ -264,6 +272,7 @@ public class MainActivity extends AppCompatActivity {
                     openUrl(url);
                 }
             } catch (Exception fallbackException) {
+                ErrorLogger.logError(this, "BROWSE_FALLBACK_ERROR", fallbackException);
                 Toast.makeText(this, "Error opening browser: " + e.getMessage(), Toast.LENGTH_LONG).show();
             }
         }

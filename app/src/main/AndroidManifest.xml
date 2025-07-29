@@ -8,6 +8,7 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
 
     <application
+        android:name="com.desktopbrowser.advanced.DesktopBrowserApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -57,6 +58,13 @@
             android:name="com.desktopbrowser.advanced.DownloadsActivity"
             android:exported="false"
             android:theme="@style/Theme.AdvancedDesktopBrowser.NoActionBar" />
+
+        <activity
+            android:name="com.desktopbrowser.advanced.CrashReportActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AdvancedDesktopBrowser"
+            android:taskAffinity=""
+            android:excludeFromRecents="true" />
 
         <!-- FileProvider for browser downloads -->
         <provider
