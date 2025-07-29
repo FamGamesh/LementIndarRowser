@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    
+    <!-- Navigation Items -->
+    <item
+        android:id="@+id/menu_back"
+        android:title="← Back"
+        android:icon="@drawable/ic_arrow_back" />
+        
+    <item
+        android:id="@+id/menu_forward"
+        android:title="→ Forward"
+        android:icon="@drawable/ic_arrow_forward" />
+        
+    <item
+        android:id="@+id/menu_refresh"
+        android:title="🔄 Refresh"
+        android:icon="@drawable/ic_refresh" />
+        
+    <item
+        android:id="@+id/menu_home"
+        android:title="🏠 Home"
+        android:icon="@drawable/ic_home" />
+    
+    <!-- Separator -->
+    <group android:id="@+id/separator1">
+        <item
+            android:id="@+id/menu_separator1"
+            android:title="────────────"
+            android:enabled="false" />
+    </group>
+    
+    <!-- Main Navigation Items -->
+    <item
+        android:id="@+id/menu_history"
+        android:title="📚 History"
+        android:icon="@drawable/ic_history" />
+        
+    <item
+        android:id="@+id/menu_bookmarks"
+        android:title="🔖 Bookmarks"
+        android:icon="@drawable/ic_bookmarks" />
+        
+    <item
+        android:id="@+id/menu_downloads"
+        android:title="📥 Downloads"
+        android:icon="@drawable/ic_arrow_forward" />
+        
+    <item
+        android:id="@+id/menu_settings"
+        android:title="⚙️ Settings"
+        android:icon="@drawable/ic_settings" />
+        
+</menu>

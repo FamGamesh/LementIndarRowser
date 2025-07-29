@@ -45,6 +45,7 @@ public class BrowserActivity extends AppCompatActivity {
     }
     private WebView webView;
     private EditText addressBar;
+    private Button browserMenuButton;
     private ImageButton backButton, forwardButton, refreshButton, homeButton;
     private ImageButton zoomInButton, zoomOutButton, desktopModeButton;
     private TextView zoomLevel;
@@ -135,21 +136,13 @@ public class BrowserActivity extends AppCompatActivity {
     }
     
     private void setupToolbar() {
-        Toolbar toolbar = findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
-        if (getSupportActionBar() != null) {
-            getSupportActionBar().setDisplayHomeAsUpEnabled(false);
-            getSupportActionBar().setTitle("");
-        }
+        // No longer using toolbar, using custom header
     }
     
     private void initializeViews() {
         webView = findViewById(R.id.webview);
         addressBar = findViewById(R.id.address_bar);
-        backButton = findViewById(R.id.btn_back);
-        forwardButton = findViewById(R.id.btn_forward);
-        refreshButton = findViewById(R.id.btn_refresh);
-        homeButton = findViewById(R.id.btn_home);
+        browserMenuButton = findViewById(R.id.btn_browser_menu);
         zoomInButton = findViewById(R.id.btn_zoom_in);
         zoomOutButton = findViewById(R.id.btn_zoom_out);
         desktopModeButton = findViewById(R.id.btn_desktop_mode);
@@ -167,7 +160,7 @@ public class BrowserActivity extends AppCompatActivity {
         tabCounterView = findViewById(R.id.tab_counter);
         tabCountText = tabCounterView.findViewById(R.id.tab_count_text);
         
-        if (webView == null || addressBar == null) {
+        if (webView == null || addressBar == null || browserMenuButton == null) {
             throw new RuntimeException("Required views not found in layout");
         }
         
@@ -852,65 +845,8 @@ public class BrowserActivity extends AppCompatActivity {
     }
     
     private void setupNavigationControls() {
-        backButton.setOnClickListener(v -> {
-            // Add debouncing for navigation
-            long currentTime = System.currentTimeMillis();
-            if (isNavigating || (currentTime - lastNavigationTime) < NAVIGATION_DEBOUNCE) {
-                return;
-            }
-            
-            if (webView.canGoBack()) {
-                lastNavigationTime = currentTime;
-                isNavigating = true;
-                webView.goBack();
-            }
-        });
-        
-        forwardButton.setOnClickListener(v -> {
-            // Add debouncing for navigation
-            long currentTime = System.currentTimeMillis();
-            if (isNavigating || (currentTime - lastNavigationTime) < NAVIGATION_DEBOUNCE) {
-                return;
-            }
-            
-            if (webView.canGoForward()) {
-                lastNavigationTime = currentTime;
-                isNavigating = true;
-                webView.goForward();
-            }
-        });
-        
-        refreshButton.setOnClickListener(v -> {
-            // Add debouncing to prevent multiple concurrent refreshes
-            long currentTime = System.currentTimeMillis();
-            if (isRefreshing || (currentTime - lastRefreshTime) < REFRESH_DEBOUNCE) {
-                Log.d(TAG, "Refresh already in progress or too recent, ignoring");
-                return;
-            }
-            
-            lastRefreshTime = currentTime;
-            isRefreshing = true;
-            
-            try {
-                webView.reload();
-                Toast.makeText(BrowserActivity.this, "Refreshing page...", Toast.LENGTH_SHORT).show();
-            } catch (Exception e) {
-                Log.e(TAG, "Error refreshing page", e);
-                isRefreshing = false;
-            }
-        });
-        
-        homeButton.setOnClickListener(v -> {
-            // Save current session as "recent session" before going home
-            saveCurrentSessionAsRecent();
-            
-            // Return to main activity with flag
-            Intent intent = new Intent(this, MainActivity.class);
-            intent.putExtra("returning_from_browser", true);
-            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            startActivity(intent);
-            finish();
-        });
+        // Browser menu button click listener
+        browserMenuButton.setOnClickListener(v -> showBrowserNavigationMenu());
         
         // Advanced Desktop Zoom Controls with crash prevention
         zoomInButton.setOnClickListener(v -> {
@@ -947,9 +883,7 @@ public class BrowserActivity extends AppCompatActivity {
         // Update tab counter display
         updateTabCounter();
         
-        desktopModeButton.setOnClickListener(v -> {
-            toggleDesktopMode();
-        });
+        // Toggle desktop mode functionality moved to menu
         
         addressBar.setOnEditorActionListener((v, actionId, event) -> {
             String url = addressBar.getText().toString().trim();
@@ -969,6 +903,132 @@ public class BrowserActivity extends AppCompatActivity {
                 collapseAddressBar();
             }
         });
+    }
+    
+    private void showBrowserNavigationMenu() {
+        // Create dropdown menu with navigation options
+        android.widget.PopupMenu popupMenu = new android.widget.PopupMenu(this, browserMenuButton);
+        popupMenu.getMenuInflater().inflate(R.menu.main_navigation_menu, popupMenu.getMenu());
+        
+        popupMenu.setOnMenuItemClickListener(item -> {
+            int id = item.getItemId();
+            if (id == R.id.menu_back) {
+                if (webView.canGoBack()) {
+                    // Add debouncing for navigation
+                    long currentTime = System.currentTimeMillis();
+                    if (!isNavigating && (currentTime - lastNavigationTime) >= NAVIGATION_DEBOUNCE) {
+                        lastNavigationTime = currentTime;
+                        isNavigating = true;
+                        webView.goBack();
+                    }
+                } else {
+                    Toast.makeText(this, "Can't go back", Toast.LENGTH_SHORT).show();
+                }
+                return true;
+            } else if (id == R.id.menu_forward) {
+                if (webView.canGoForward()) {
+                    // Add debouncing for navigation
+                    long currentTime = System.currentTimeMillis();
+                    if (!isNavigating && (currentTime - lastNavigationTime) >= NAVIGATION_DEBOUNCE) {
+                        lastNavigationTime = currentTime;
+                        isNavigating = true;
+                        webView.goForward();
+                    }
+                } else {
+                    Toast.makeText(this, "Can't go forward", Toast.LENGTH_SHORT).show();
+                }
+                return true;
+            } else if (id == R.id.menu_refresh) {
+                // Add debouncing to prevent multiple concurrent refreshes
+                long currentTime = System.currentTimeMillis();
+                if (!isRefreshing && (currentTime - lastRefreshTime) >= REFRESH_DEBOUNCE) {
+                    lastRefreshTime = currentTime;
+                    isRefreshing = true;
+                    try {
+                        webView.reload();
+                        Toast.makeText(this, "Refreshing page...", Toast.LENGTH_SHORT).show();
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error refreshing page", e);
+                        isRefreshing = false;
+                    }
+                }
+                return true;
+            } else if (id == R.id.menu_home) {
+                // Save current session as "recent session" before going home
+                saveCurrentSessionAsRecent();
+                
+                // Return to main activity with flag
+                Intent intent = new Intent(this, MainActivity.class);
+                intent.putExtra("returning_from_browser", true);
+                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                startActivity(intent);
+                finish();
+                return true;
+            } else if (id == R.id.menu_history) {
+                openHistory();
+                return true;
+            } else if (id == R.id.menu_bookmarks) {
+                openBookmarks();
+                return true;
+            } else if (id == R.id.menu_downloads) {
+                openDownloads();
+                return true;
+            } else if (id == R.id.menu_settings) {
+                openSettings();
+                return true;
+            }
+            return false;
+        });
+        
+        popupMenu.show();
+    }
+    
+    private void openHistory() {
+        Intent intent = new Intent(this, HistoryActivity.class);
+        startActivity(intent);
+    }
+    
+    private void openBookmarks() {
+        Intent intent = new Intent(this, BookmarksActivity.class);
+        startActivity(intent);
+    }
+    
+    private void openDownloads() {
+        Intent intent = new Intent(this, DownloadsActivity.class);
+        startActivity(intent);
+    }
+    
+    private void openSettings() {
+        Intent intent = new Intent(this, SettingsActivity.class);
+        startActivity(intent);
+    }
+    
+    private void performSilentAutoRefresh(WebView view, String url) {
+        try {
+            // Track auto-refresh to prevent infinite loops
+            if (url != null && !url.contains("auto-refreshed=true")) {
+                Log.d(TAG, "🔄 Performing silent auto-refresh for: " + url);
+                
+                // Add auto-refresh delay to prevent issues
+                Handler refreshHandler = new Handler(Looper.getMainLooper());
+                refreshHandler.postDelayed(() -> {
+                    try {
+                        if (!isDestroyed && !isPaused && webView != null) {
+                            // Silent refresh without showing progress indicators
+                            String refreshUrl = url + (url.contains("?") ? "&" : "?") + "auto-refreshed=true";
+                            webView.loadUrl(refreshUrl);
+                            Log.d(TAG, "✅ Silent auto-refresh completed");
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "💥 Error during silent auto-refresh", e);
+                    }
+                }, 1000); // 1 second delay after page finishes loading
+            } else {
+                Log.d(TAG, "🚫 Skipping auto-refresh (already refreshed or URL is null)");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "💥 Error in performSilentAutoRefresh", e);
+        }
     }
     
     // Safe debounced zoom to prevent crashes
@@ -1136,6 +1196,9 @@ public class BrowserActivity extends AppCompatActivity {
             // Reset refresh flag
             isRefreshing = false;
             isNavigating = false;
+            
+            // Auto-refresh feature - silent refresh immediately after page finishes loading
+            performSilentAutoRefresh(view, url);
             
             // Update current tab info
             String title = view.getTitle();

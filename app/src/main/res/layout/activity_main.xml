@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/main_background_gradient">
+    android:background="@drawable/background_main">
 
     <LinearLayout
         android:id="@+id/main_container"
@@ -12,7 +12,7 @@
         android:orientation="vertical"
         android:padding="24dp">
 
-        <!-- App Header -->
+        <!-- Top Header with Logo and Search Bar and Three Lines Menu -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -20,192 +20,70 @@
             android:gravity="center_vertical"
             android:layout_marginBottom="32dp">
 
+            <!-- App Logo -->
             <ImageView
-                android:layout_width="72dp"
-                android:layout_height="72dp"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
                 android:src="@mipmap/ic_launcher"
                 android:layout_marginEnd="16dp"
                 android:contentDescription="@string/app_name" />
 
-            <LinearLayout
+            <!-- Search Bar -->
+            <androidx.cardview.widget.CardView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:orientation="vertical">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/app_name"
-                    android:textSize="28sp"
-                    android:textStyle="bold"
-                    android:textColor="@android:color/white"
-                    android:shadowColor="#80000000"
-                    android:shadowDx="2"
-                    android:shadowDy="2"
-                    android:shadowRadius="4" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/app_subtitle"
-                    android:textSize="16sp"
-                    android:textColor="#E3F2FD"
-                    android:layout_marginTop="4dp"
-                    android:shadowColor="#80000000"
-                    android:shadowDx="1"
-                    android:shadowDy="1"
-                    android:shadowRadius="2" />
-
-            </LinearLayout>
-
-        </LinearLayout>
-
-        <!-- URL Input Section -->
-        <androidx.cardview.widget.CardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:cardElevation="12dp"
-            app:cardCornerRadius="20dp"
-            android:layout_marginBottom="16dp"
-            app:cardBackgroundColor="@android:color/white">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="24dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Enter URL or Search"
-                    android:textSize="18sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/text_primary"
-                    android:layout_marginBottom="16dp" />
+                app:cardElevation="8dp"
+                app:cardCornerRadius="25dp"
+                android:layout_marginEnd="16dp"
+                app:cardBackgroundColor="@android:color/white">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal">
+                    android:orientation="horizontal"
+                    android:padding="4dp">
 
                     <EditText
                         android:id="@+id/url_edit_text"
                         android:layout_width="0dp"
-                        android:layout_height="56dp"
+                        android:layout_height="48dp"
                         android:layout_weight="1"
-                        android:hint="@string/search_hint"
+                        android:hint="Enter URL or Search"
                         android:imeOptions="actionGo"
                         android:inputType="textUri"
-                        android:background="@drawable/edittext_background"
+                        android:background="@android:color/transparent"
                         android:padding="16dp"
                         android:textSize="16sp"
-                        android:layout_marginEnd="12dp" />
+                        android:textColorHint="#999999" />
 
                     <Button
                         android:id="@+id/browse_button"
                         android:layout_width="wrap_content"
-                        android:layout_height="56dp"
-                        android:text="@string/search_button_text"
+                        android:layout_height="48dp"
+                        android:text="Search"
                         android:background="@drawable/button_background"
                         android:textColor="@android:color/white"
                         android:textStyle="bold"
-                        android:textSize="16sp"
-                        android:minWidth="120dp"
-                        android:elevation="4dp" />
+                        android:textSize="14sp"
+                        android:minWidth="80dp"
+                        android:layout_marginEnd="4dp" />
 
                 </LinearLayout>
 
-            </LinearLayout>
+            </androidx.cardview.widget.CardView>
 
-        </androidx.cardview.widget.CardView>
-
-        <!-- Refresh Tip -->
-        <androidx.cardview.widget.CardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:cardElevation="6dp"
-            app:cardCornerRadius="12dp"
-            android:layout_marginBottom="24dp"
-            app:cardBackgroundColor="#FFECB3">
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/refresh_tip"
-                android:textSize="14sp"
-                android:textColor="#E65100"
-                android:textStyle="italic"
-                android:padding="16dp"
-                android:gravity="center"
-                android:drawableStart="@drawable/ic_refresh"
-                android:drawablePadding="8dp"
-                android:drawableTint="#FF9800" />
-
-        </androidx.cardview.widget.CardView>
-
-        <!-- Session Management Buttons will be added dynamically by MainActivity -->
-
-        <!-- Navigation Buttons -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center"
-            android:layout_marginBottom="8dp">
-
+            <!-- Three Lines Menu Button -->
             <Button
-                android:id="@+id/btn_history"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="History"
-                android:drawableTop="@drawable/ic_history"
-                android:background="@drawable/feature_card_background"
-                android:padding="16dp"
-                android:layout_marginEnd="6dp"
-                android:textColor="@color/text_primary"
-                android:elevation="4dp" />
-
-            <Button
-                android:id="@+id/btn_bookmarks"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Bookmarks"
-                android:drawableTop="@drawable/ic_bookmarks"
-                android:background="@drawable/feature_card_background"
-                android:padding="16dp"
-                android:layout_marginHorizontal="6dp"
-                android:textColor="@color/text_primary"
-                android:elevation="4dp" />
-
-            <Button
-                android:id="@+id/btn_downloads"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Downloads"
-                android:drawableTop="@drawable/ic_arrow_forward"
-                android:background="@drawable/feature_card_background"
-                android:padding="16dp"
-                android:layout_marginHorizontal="6dp"
-                android:textColor="@color/text_primary"
-                android:elevation="4dp" />
-
-            <Button
-                android:id="@+id/btn_settings"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Settings"
-                android:drawableTop="@drawable/ic_settings"
-                android:background="@drawable/feature_card_background"
-                android:padding="16dp"
-                android:layout_marginStart="6dp"
-                android:textColor="@color/text_primary"
-                android:elevation="4dp" />
+                android:id="@+id/btn_menu"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:text="☰"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:textColor="@android:color/white"
+                android:background="@drawable/button_background"
+                android:elevation="8dp" />
 
         </LinearLayout>
 
@@ -231,7 +109,31 @@
             android:columnCount="2"
             android:rowCount="3"
             android:orientation="horizontal"
-            android:layout_marginBottom="32dp" />
+            android:layout_marginBottom="24dp" />
+
+        <!-- Refresh Tip Message -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardElevation="6dp"
+            app:cardCornerRadius="12dp"
+            android:layout_marginBottom="24dp"
+            app:cardBackgroundColor="#FFECB3">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="If any page doesn't render properly\nin desktop mode, simply refresh for\noptimal viewing experience"
+                android:textSize="14sp"
+                android:textColor="#E65100"
+                android:textStyle="italic"
+                android:padding="16dp"
+                android:gravity="center"
+                android:drawableStart="@drawable/ic_refresh"
+                android:drawablePadding="8dp"
+                android:drawableTint="#FF9800" />
+
+        </androidx.cardview.widget.CardView>
 
         <!-- Made By Section (Golden Box) -->
         <androidx.cardview.widget.CardView

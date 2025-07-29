@@ -18,6 +18,7 @@ public class MainActivity extends AppCompatActivity {
     
     private EditText urlEditText;
     private Button browseButton;
+    private Button menuButton;
     private GridLayout quickAccessGrid;
     private Button recentSessionButton;
     private Button openLastSessionButton;
@@ -58,10 +59,11 @@ public class MainActivity extends AppCompatActivity {
     private void initializeViews() {
         urlEditText = findViewById(R.id.url_edit_text);
         browseButton = findViewById(R.id.browse_button);
+        menuButton = findViewById(R.id.btn_menu);
         quickAccessGrid = findViewById(R.id.quick_access_grid);
         mainContainer = findViewById(R.id.main_container);
         
-        if (urlEditText == null || browseButton == null) {
+        if (urlEditText == null || browseButton == null || menuButton == null) {
             throw new RuntimeException("Failed to find required views");
         }
         
@@ -86,11 +88,8 @@ public class MainActivity extends AppCompatActivity {
             return false;
         });
         
-        // Navigation buttons with professional design
-        findViewById(R.id.btn_history).setOnClickListener(v -> openHistory());
-        findViewById(R.id.btn_bookmarks).setOnClickListener(v -> openBookmarks());
-        findViewById(R.id.btn_downloads).setOnClickListener(v -> openDownloads());
-        findViewById(R.id.btn_settings).setOnClickListener(v -> openSettings());
+        // Menu button click listener - shows dropdown menu with navigation options
+        menuButton.setOnClickListener(v -> showNavigationMenu());
     }
     
     private void setupQuickAccess() {
@@ -270,6 +269,48 @@ public class MainActivity extends AppCompatActivity {
         startActivity(intent);
     }
     
+    private void showNavigationMenu() {
+        // Create dropdown menu with navigation options
+        android.widget.PopupMenu popupMenu = new android.widget.PopupMenu(this, menuButton);
+        popupMenu.getMenuInflater().inflate(R.menu.main_navigation_menu, popupMenu.getMenu());
+        
+        popupMenu.setOnMenuItemClickListener(item -> {
+            int id = item.getItemId();
+            if (id == R.id.menu_back) {
+                // Navigate back in browser if possible
+                Toast.makeText(this, "Open browser first to navigate", Toast.LENGTH_SHORT).show();
+                return true;
+            } else if (id == R.id.menu_forward) {
+                // Navigate forward in browser if possible
+                Toast.makeText(this, "Open browser first to navigate", Toast.LENGTH_SHORT).show();
+                return true;
+            } else if (id == R.id.menu_refresh) {
+                // Refresh current page in browser if possible
+                Toast.makeText(this, "Open browser first to refresh", Toast.LENGTH_SHORT).show();
+                return true;
+            } else if (id == R.id.menu_home) {
+                // Already on home screen
+                Toast.makeText(this, "You're already on the home screen", Toast.LENGTH_SHORT).show();
+                return true;
+            } else if (id == R.id.menu_history) {
+                openHistory();
+                return true;
+            } else if (id == R.id.menu_bookmarks) {
+                openBookmarks();
+                return true;
+            } else if (id == R.id.menu_downloads) {
+                openDownloads();
+                return true;
+            } else if (id == R.id.menu_settings) {
+                openSettings();
+                return true;
+            }
+            return false;
+        });
+        
+        popupMenu.show();
+    }
+    
     private void openHistory() {
         // Show interstitial ad before opening history
         adManager.showInterstitialAd(this, "History", () -> {
@@ -316,6 +357,14 @@ public class MainActivity extends AppCompatActivity {
             android.util.Log.e("MainActivity", "💥 Error opening downloads section", e);
             Toast.makeText(this, "Error accessing Downloads: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
+    }
+    
+    private void openSettings() {
+        // Show interstitial ad before opening settings
+        adManager.showInterstitialAd(this, "Settings", () -> {
+            Intent intent = new Intent(this, SettingsActivity.class);
+            startActivity(intent);
+        });
     }
     
     private void setupSessionButtons() {
@@ -448,14 +497,6 @@ public class MainActivity extends AppCompatActivity {
             android.util.Log.e("MainActivity", "No recent session data available");
             Toast.makeText(this, "No recent session found", Toast.LENGTH_SHORT).show();
         }
-    }
-    
-    private void openSettings() {
-        // Show interstitial ad before opening settings
-        adManager.showInterstitialAd(this, "Settings", () -> {
-            Intent intent = new Intent(this, SettingsActivity.class);
-            startActivity(intent);
-        });
     }
     
     private void showPremiumRewardedAdDialog(String message, Runnable onSuccess) {

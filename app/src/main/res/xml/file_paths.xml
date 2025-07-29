@@ -1,4 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Internal app files -->
     <files-path name="macro_files" path="Element Finder Browser/" />
+    <files-path name="app_files" path="." />
+    
+    <!-- External storage Downloads folder -->
+    <external-path name="downloads" path="Download/" />
+    <external-path name="external_downloads" path="." />
+    
+    <!-- External files directory -->
+    <external-files-path name="external_files" path="." />
+    
+    <!-- Cache directory -->
+    <cache-path name="cache" path="." />
+    
+    <!-- Root external storage -->
+    <root-path name="root" path="." />
 </paths>

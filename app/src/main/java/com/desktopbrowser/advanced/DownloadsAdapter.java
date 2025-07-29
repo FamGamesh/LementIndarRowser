@@ -48,18 +48,42 @@ public class DownloadsAdapter extends RecyclerView.Adapter<DownloadsAdapter.Down
             try {
                 File file = new File(item.filepath);
                 if (file.exists()) {
-                    Log.d(TAG, "📂 Opening file: " + item.filename);
+                    Log.d(TAG, "📂 Opening file: " + item.filename + " at: " + item.filepath);
                     
+                    // Create intent to open file
                     Intent intent = new Intent(Intent.ACTION_VIEW);
-                    Uri uri = androidx.core.content.FileProvider.getUriForFile(
-                        context,
-                        context.getPackageName() + ".fileprovider",
-                        file
-                    );
-                    intent.setDataAndType(uri, getMimeType(item.filename));
-                    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                     
-                    context.startActivity(Intent.createChooser(intent, "Open " + item.filename));
+                    // Use FileProvider to get URI for the file
+                    Uri uri;
+                    try {
+                        uri = androidx.core.content.FileProvider.getUriForFile(
+                            context,
+                            context.getPackageName() + ".fileprovider",
+                            file
+                        );
+                        Log.d(TAG, "✅ FileProvider URI created: " + uri.toString());
+                    } catch (IllegalArgumentException e) {
+                        Log.e(TAG, "❌ FileProvider failed, trying content URI", e);
+                        // Fallback to content URI
+                        uri = Uri.fromFile(file);
+                    }
+                    
+                    // Set data and type
+                    String mimeType = getMimeType(item.filename);
+                    Log.d(TAG, "🔍 Detected MIME type: " + mimeType);
+                    
+                    intent.setDataAndType(uri, mimeType);
+                    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    
+                    // Try to start the activity
+                    try {
+                        context.startActivity(Intent.createChooser(intent, "Open " + item.filename));
+                        Log.d(TAG, "✅ File opened successfully: " + item.filename);
+                    } catch (android.content.ActivityNotFoundException e) {
+                        Log.w(TAG, "⚠️ No app found to open file: " + item.filename, e);
+                        Toast.makeText(context, "No app found to open this file type: " + mimeType, Toast.LENGTH_LONG).show();
+                    }
                 } else {
                     Log.w(TAG, "📄 File not found: " + item.filepath);
                     Toast.makeText(context, "File not found: " + item.filename, Toast.LENGTH_SHORT).show();
@@ -73,7 +97,7 @@ public class DownloadsAdapter extends RecyclerView.Adapter<DownloadsAdapter.Down
                 }
             } catch (Exception e) {
                 Log.e(TAG, "💥 Error opening file: " + item.filename, e);
-                Toast.makeText(context, "Cannot open file: " + item.filename, Toast.LENGTH_SHORT).show();
+                Toast.makeText(context, "Cannot open file: " + item.filename + "\nError: " + e.getMessage(), Toast.LENGTH_LONG).show();
             }
         });
         
@@ -196,10 +220,104 @@ public class DownloadsAdapter extends RecyclerView.Adapter<DownloadsAdapter.Down
             extension = filename.substring(filename.lastIndexOf(".") + 1).toLowerCase();
         }
         
+        // First try Android's built-in MIME type map
         android.webkit.MimeTypeMap mime = android.webkit.MimeTypeMap.getSingleton();
         String mimeType = mime.getMimeTypeFromExtension(extension);
         
+        // If that fails, use our custom MIME type detection
+        if (mimeType == null || mimeType.isEmpty()) {
+            mimeType = getCustomMimeType(extension);
+        }
+        
+        Log.d(TAG, "🔍 File extension: " + extension + " -> MIME type: " + mimeType);
         return mimeType != null ? mimeType : "*/*";
+    }
+    
+    private String getCustomMimeType(String extension) {
+        switch (extension.toLowerCase()) {
+            // Images
+            case "jpg":
+            case "jpeg":
+                return "image/jpeg";
+            case "png":
+                return "image/png";
+            case "gif":
+                return "image/gif";
+            case "webp":
+                return "image/webp";
+            case "bmp":
+                return "image/bmp";
+            case "svg":
+                return "image/svg+xml";
+                
+            // Videos
+            case "mp4":
+                return "video/mp4";
+            case "avi":
+                return "video/x-msvideo";
+            case "mkv":
+                return "video/x-matroska";
+            case "mov":
+                return "video/quicktime";
+            case "wmv":
+                return "video/x-ms-wmv";
+            case "webm":
+                return "video/webm";
+                
+            // Audio
+            case "mp3":
+                return "audio/mpeg";
+            case "wav":
+                return "audio/wav";
+            case "flac":
+                return "audio/flac";
+            case "aac":
+                return "audio/aac";
+            case "ogg":
+                return "audio/ogg";
+                
+            // Documents
+            case "pdf":
+                return "application/pdf";
+            case "doc":
+                return "application/msword";
+            case "docx":
+                return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+            case "xls":
+                return "application/vnd.ms-excel";
+            case "xlsx":
+                return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            case "ppt":
+                return "application/vnd.ms-powerpoint";
+            case "pptx":
+                return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+            case "txt":
+                return "text/plain";
+            case "html":
+            case "htm":
+                return "text/html";
+                
+            // Archives
+            case "zip":
+                return "application/zip";
+            case "rar":
+                return "application/x-rar-compressed";
+            case "7z":
+                return "application/x-7z-compressed";
+            case "tar":
+                return "application/x-tar";
+            case "gz":
+                return "application/gzip";
+                
+            // Applications
+            case "apk":
+                return "application/vnd.android.package-archive";
+            case "exe":
+                return "application/x-msdownload";
+                
+            default:
+                return "application/octet-stream";
+        }
     }
     
     static class DownloadViewHolder extends RecyclerView.ViewHolder {
