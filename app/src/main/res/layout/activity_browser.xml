@@ -5,7 +5,7 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
-    <!-- Toolbar with Logo, Address Bar, and Menu Button -->
+    <!-- Top Header with Logo and Three Lines Menu -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -23,30 +23,15 @@
             android:layout_marginEnd="12dp"
             android:contentDescription="@string/app_name" />
 
-        <!-- Address Bar -->
-        <androidx.cardview.widget.CardView
+        <!-- App Title -->
+        <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            app:cardElevation="4dp"
-            app:cardCornerRadius="20dp"
-            android:layout_marginEnd="12dp"
-            app:cardBackgroundColor="@android:color/white">
-
-            <EditText
-                android:id="@+id/address_bar"
-                android:layout_width="match_parent"
-                android:layout_height="40dp"
-                android:background="@android:color/transparent"
-                android:hint="Enter URL or search..."
-                android:imeOptions="actionGo"
-                android:inputType="textUri"
-                android:padding="12dp"
-                android:singleLine="true"
-                android:textSize="14sp"
-                android:textColorHint="#999999" />
-
-        </androidx.cardview.widget.CardView>
+            android:text="@string/app_name"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="@android:color/white" />
 
         <!-- Three Lines Menu Button -->
         <Button
@@ -61,6 +46,30 @@
             android:elevation="4dp" />
 
     </LinearLayout>
+
+    <!-- Full Width Address Bar -->
+    <androidx.cardview.widget.CardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:cardElevation="4dp"
+        app:cardCornerRadius="20dp"
+        android:layout_margin="8dp"
+        app:cardBackgroundColor="@android:color/white">
+
+        <EditText
+            android:id="@+id/address_bar"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="@android:color/transparent"
+            android:hint="Enter URL or search..."
+            android:imeOptions="actionGo"
+            android:inputType="textUri"
+            android:padding="16dp"
+            android:singleLine="true"
+            android:textSize="16sp"
+            android:textColorHint="#999999" />
+
+    </androidx.cardview.widget.CardView>
 
     <!-- Tab Management Section with Chrome-like functionality -->
     <LinearLayout

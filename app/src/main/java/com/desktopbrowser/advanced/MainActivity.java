@@ -209,8 +209,24 @@ public class MainActivity extends AppCompatActivity {
             }
             
             String url = processInput(input);
-            android.util.Log.d("MainActivity", "Search button pressed - Premium active: " + sessionManager.isPremiumActive());
+            android.util.Log.d("MainActivity", "Search button pressed - URL: " + url);
             
+            // Safety checks for managers
+            if (sessionManager == null) {
+                android.util.Log.e("MainActivity", "SessionManager is null, reinitializing...");
+                sessionManager = SessionManager.getInstance(this);
+            }
+            
+            if (adManager == null) {
+                android.util.Log.e("MainActivity", "AdManager is null, reinitializing...");
+                adManager = AdManager.getInstance(this);
+            }
+            
+            // Simplified flow - just open URL directly for now to test functionality
+            android.util.Log.d("MainActivity", "Opening URL directly: " + url);
+            openUrl(url);
+            
+            /* Original ad flow - commenting out temporarily to test basic functionality
             // Check if premium is still active
             if (sessionManager.isPremiumActive()) {
                 // User has active premium - show interstitial ad then browse directly
@@ -234,10 +250,20 @@ public class MainActivity extends AppCompatActivity {
                         });
                 });
             }
+            */
             
         } catch (Exception e) {
             android.util.Log.e("MainActivity", "Error in handleBrowse", e);
-            Toast.makeText(this, "Error opening browser: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            // Fallback - try to open URL directly without ads
+            try {
+                String input = urlEditText.getText().toString().trim();
+                if (!input.isEmpty()) {
+                    String url = processInput(input);
+                    openUrl(url);
+                }
+            } catch (Exception fallbackException) {
+                Toast.makeText(this, "Error opening browser: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            }
         }
     }
     
