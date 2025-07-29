@@ -1995,19 +1995,6 @@ public class BrowserActivity extends AppCompatActivity {
         }
     }
     
-    private void updateCurrentTabInfo(String url, String title) {
-        // Update current tab info in tab list
-        if (!tabList.isEmpty()) {
-            for (TabInfo tab : tabList) {
-                if (tab.isActive) {
-                    tab.url = url;
-                    tab.title = title != null ? title : "Tab";
-                    break;
-                }
-            }
-        }
-    }
-    
     private void updateTabCounter() {
         if (tabCountText != null) {
             tabCountText.setText(String.valueOf(tabCount));
