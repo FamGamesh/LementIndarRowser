@@ -16,6 +16,9 @@ public class SessionManager {
     private static final String KEY_RECENT_SESSION = "recent_session";
     private static final String KEY_CURRENT_TAB_INDEX = "current_tab_index";
     private static final String KEY_PREMIUM_EXPIRY = "premium_expiry";
+    private static final String KEY_TEMP_STATE = "temp_browser_state";
+    private static final String KEY_WEBVIEW_COOKIES = "webview_cookies";
+    private static final String KEY_SESSION_COOKIES = "session_cookies";
     
     private static SessionManager instance;
     private SharedPreferences prefs;
@@ -33,17 +36,29 @@ public class SessionManager {
         return instance;
     }
     
-    // Session data structure
+    // Enhanced session data structure with cookies and WebView state
     public static class TabSession {
         public String url;
         public String title;
         public Bundle webViewState;
         public long timestamp;
+        public String cookieData; // Store cookies for this tab
+        public float zoomLevel; // Store zoom level
         
         public TabSession(String url, String title, Bundle webViewState) {
             this.url = url;
             this.title = title;
             this.webViewState = webViewState;
+            this.timestamp = System.currentTimeMillis();
+            this.zoomLevel = 65f; // Default zoom
+        }
+        
+        public TabSession(String url, String title, Bundle webViewState, String cookieData, float zoomLevel) {
+            this.url = url;
+            this.title = title;
+            this.webViewState = webViewState;
+            this.cookieData = cookieData;
+            this.zoomLevel = zoomLevel;
             this.timestamp = System.currentTimeMillis();
         }
     }
@@ -52,6 +67,7 @@ public class SessionManager {
         public List<TabSession> tabs;
         public int currentTabIndex;
         public long timestamp;
+        public String globalCookies; // Store global cookies
         
         public BrowserSession() {
             this.tabs = new ArrayList<>();
@@ -60,34 +76,68 @@ public class SessionManager {
         }
     }
     
-    // Save current session as "recent session"
+    // Enhanced session management with cookies and comprehensive state
     public void saveRecentSession(BrowserSession session) {
-        String sessionJson = gson.toJson(session);
-        prefs.edit().putString(KEY_RECENT_SESSION, sessionJson).apply();
+        try {
+            // Save cookies before saving session
+            saveCookiesForSession(session, "recent");
+            
+            String sessionJson = gson.toJson(session);
+            prefs.edit().putString(KEY_RECENT_SESSION, sessionJson).apply();
+            android.util.Log.d("SessionManager", "Recent session saved with " + session.tabs.size() + " tabs and cookies");
+        } catch (Exception e) {
+            android.util.Log.e("SessionManager", "Error saving recent session", e);
+        }
     }
-    
-    // Save current session as "last session" (for app close recovery)
+
+    // Enhanced save for "last session" with cookies
     public void saveLastSession(BrowserSession session) {
-        String sessionJson = gson.toJson(session);
-        prefs.edit().putString(KEY_LAST_SESSION, sessionJson).apply();
+        try {
+            // Save cookies before saving session
+            saveCookiesForSession(session, "last");
+            
+            String sessionJson = gson.toJson(session);
+            prefs.edit().putString(KEY_LAST_SESSION, sessionJson).apply();
+            android.util.Log.d("SessionManager", "Last session saved with " + session.tabs.size() + " tabs and cookies");
+        } catch (Exception e) {
+            android.util.Log.e("SessionManager", "Error saving last session", e);
+        }
     }
-    
-    // Get recent session (visible when home button pressed)
+
+    // Get recent session with cookie restoration
     public BrowserSession getRecentSession() {
-        String sessionJson = prefs.getString(KEY_RECENT_SESSION, null);
-        if (sessionJson != null) {
-            Type type = new TypeToken<BrowserSession>(){}.getType();
-            return gson.fromJson(sessionJson, type);
+        try {
+            String sessionJson = prefs.getString(KEY_RECENT_SESSION, null);
+            if (sessionJson != null) {
+                Type type = new TypeToken<BrowserSession>(){}.getType();
+                BrowserSession session = gson.fromJson(sessionJson, type);
+                
+                // Restore cookies for session
+                restoreCookiesForSession(session, "recent");
+                
+                return session;
+            }
+        } catch (Exception e) {
+            android.util.Log.e("SessionManager", "Error getting recent session", e);
         }
         return null;
     }
-    
-    // Get last session (for app recovery)
+
+    // Get last session with cookie restoration
     public BrowserSession getLastSession() {
-        String sessionJson = prefs.getString(KEY_LAST_SESSION, null);
-        if (sessionJson != null) {
-            Type type = new TypeToken<BrowserSession>(){}.getType();
-            return gson.fromJson(sessionJson, type);
+        try {
+            String sessionJson = prefs.getString(KEY_LAST_SESSION, null);
+            if (sessionJson != null) {
+                Type type = new TypeToken<BrowserSession>(){}.getType();
+                BrowserSession session = gson.fromJson(sessionJson, type);
+                
+                // Restore cookies for session
+                restoreCookiesForSession(session, "last");
+                
+                return session;
+            }
+        } catch (Exception e) {
+            android.util.Log.e("SessionManager", "Error getting last session", e);
         }
         return null;
     }
@@ -193,22 +243,49 @@ public class SessionManager {
         }
     }
     
-    // Helper method to create tab session from WebView with enhanced state capture
+    // Enhanced helper methods for comprehensive session and cookie management
     public TabSession createTabSession(WebView webView, String url, String title) {
         Bundle webViewState = new Bundle();
+        String cookieData = "";
+        float zoomLevel = 65f;
+        
         try {
             // Save comprehensive WebView state
             webView.saveState(webViewState);
-            android.util.Log.d("SessionManager", "Created tab session for URL: " + url + " with state bundle size: " + webViewState.size());
+            
+            // Get cookies for this URL
+            android.webkit.CookieManager cookieManager = android.webkit.CookieManager.getInstance();
+            if (url != null) {
+                cookieData = cookieManager.getCookie(url);
+                if (cookieData == null) cookieData = "";
+            }
+            
+            // Get zoom level (if available)
+            // Note: WebView zoom level extraction is limited in newer Android versions
+            
+            android.util.Log.d("SessionManager", "Created enhanced tab session for URL: " + url + 
+                " with state bundle size: " + webViewState.size() + 
+                " and cookies: " + (cookieData.length() > 0 ? "YES" : "NO"));
+                
         } catch (Exception e) {
-            android.util.Log.e("SessionManager", "Error saving WebView state", e);
+            android.util.Log.e("SessionManager", "Error saving comprehensive WebView state", e);
         }
-        return new TabSession(url, title, webViewState);
+        
+        return new TabSession(url, title, webViewState, cookieData, zoomLevel);
     }
-    
-    // Helper method to restore WebView from tab session with enhanced restoration
+
+    // Enhanced WebView restoration with cookies
     public void restoreWebView(WebView webView, TabSession tabSession) {
         try {
+            // Restore cookies first
+            if (tabSession.cookieData != null && !tabSession.cookieData.isEmpty() && tabSession.url != null) {
+                android.webkit.CookieManager cookieManager = android.webkit.CookieManager.getInstance();
+                cookieManager.setCookie(tabSession.url, tabSession.cookieData);
+                cookieManager.flush(); // Ensure cookies are saved
+                android.util.Log.d("SessionManager", "Cookies restored for: " + tabSession.url);
+            }
+            
+            // Restore WebView state
             if (tabSession.webViewState != null && !tabSession.webViewState.isEmpty()) {
                 android.util.Log.d("SessionManager", "Restoring WebView state for: " + tabSession.url);
                 webView.restoreState(tabSession.webViewState);
@@ -219,8 +296,9 @@ public class SessionManager {
                 android.util.Log.w("SessionManager", "No URL or state to restore, loading Google");
                 webView.loadUrl("https://www.google.com");
             }
+            
         } catch (Exception e) {
-            android.util.Log.e("SessionManager", "Error restoring WebView", e);
+            android.util.Log.e("SessionManager", "Error restoring enhanced WebView", e);
             // Fallback to loading URL directly
             if (tabSession.url != null && !tabSession.url.isEmpty()) {
                 webView.loadUrl(tabSession.url);
@@ -228,5 +306,81 @@ public class SessionManager {
                 webView.loadUrl("https://www.google.com");
             }
         }
+    }
+    
+    // Cookie management for sessions
+    private void saveCookiesForSession(BrowserSession session, String sessionType) {
+        try {
+            android.webkit.CookieManager cookieManager = android.webkit.CookieManager.getInstance();
+            
+            // Save global cookies
+            StringBuilder allCookies = new StringBuilder();
+            
+            // For each tab, save its specific cookies
+            for (TabSession tab : session.tabs) {
+                if (tab.url != null) {
+                    String cookies = cookieManager.getCookie(tab.url);
+                    if (cookies != null && !cookies.isEmpty()) {
+                        tab.cookieData = cookies;
+                        allCookies.append(tab.url).append(":").append(cookies).append(";");
+                    }
+                }
+            }
+            
+            session.globalCookies = allCookies.toString();
+            android.util.Log.d("SessionManager", "Cookies saved for " + sessionType + " session");
+            
+        } catch (Exception e) {
+            android.util.Log.e("SessionManager", "Error saving cookies for session", e);
+        }
+    }
+    
+    private void restoreCookiesForSession(BrowserSession session, String sessionType) {
+        try {
+            android.webkit.CookieManager cookieManager = android.webkit.CookieManager.getInstance();
+            
+            // Restore cookies for each tab
+            for (TabSession tab : session.tabs) {
+                if (tab.cookieData != null && !tab.cookieData.isEmpty() && tab.url != null) {
+                    cookieManager.setCookie(tab.url, tab.cookieData);
+                }
+            }
+            
+            cookieManager.flush(); // Ensure all cookies are saved
+            android.util.Log.d("SessionManager", "Cookies restored for " + sessionType + " session");
+            
+        } catch (Exception e) {
+            android.util.Log.e("SessionManager", "Error restoring cookies for session", e);
+        }
+    }
+    
+    // Temporary state management for pause/resume scenarios
+    public void saveTemporaryState(String url, String title, float zoomLevel) {
+        try {
+            java.util.Map<String, Object> tempState = new java.util.HashMap<>();
+            tempState.put("url", url);
+            tempState.put("title", title);
+            tempState.put("zoomLevel", zoomLevel);
+            tempState.put("timestamp", System.currentTimeMillis());
+            
+            String tempStateJson = gson.toJson(tempState);
+            prefs.edit().putString(KEY_TEMP_STATE, tempStateJson).apply();
+            
+        } catch (Exception e) {
+            android.util.Log.e("SessionManager", "Error saving temporary state", e);
+        }
+    }
+    
+    public java.util.Map<String, Object> getTemporaryState() {
+        try {
+            String tempStateJson = prefs.getString(KEY_TEMP_STATE, null);
+            if (tempStateJson != null) {
+                Type type = new TypeToken<java.util.Map<String, Object>>(){}.getType();
+                return gson.fromJson(tempStateJson, type);
+            }
+        } catch (Exception e) {
+            android.util.Log.e("SessionManager", "Error getting temporary state", e);
+        }
+        return null;
     }
 }

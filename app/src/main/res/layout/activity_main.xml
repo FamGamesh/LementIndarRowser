@@ -145,41 +145,7 @@
 
         </androidx.cardview.widget.CardView>
 
-        <!-- Session Management Buttons -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center"
-            android:layout_marginBottom="16dp">
-
-            <Button
-                android:id="@+id/btn_recent_session"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Recent Session"
-                android:background="@drawable/button_background"
-                android:textColor="@android:color/white"
-                android:padding="12dp"
-                android:layout_marginEnd="8dp"
-                android:textSize="14sp"
-                android:elevation="4dp" />
-
-            <Button
-                android:id="@+id/btn_open_last_session"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Open Last Session"
-                android:background="@drawable/button_background"
-                android:textColor="@android:color/white"
-                android:padding="12dp"
-                android:layout_marginStart="8dp"
-                android:textSize="14sp"
-                android:elevation="4dp" />
-
-        </LinearLayout>
+        <!-- Session Management Buttons will be added dynamically by MainActivity -->
 
         <!-- Navigation Buttons -->
         <LinearLayout

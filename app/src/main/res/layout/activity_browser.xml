@@ -14,7 +14,7 @@
         android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
         app:popupTheme="@style/ThemeOverlay.AppCompat.Light" />
 
-    <!-- Tab Management Section -->
+    <!-- Tab Management Section with Chrome-like functionality -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -50,10 +50,24 @@
 
         </HorizontalScrollView>
 
+        <!-- Chrome-like New Tab Button -->
+        <Button
+            android:id="@+id/btn_new_tab"
+            android:layout_width="40dp"
+            android:layout_height="36dp"
+            android:text="+"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="@android:color/white"
+            android:background="@drawable/new_tab_button_background"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp"
+            android:elevation="2dp" />
+
         <include
             android:id="@+id/tab_counter"
             layout="@layout/tab_counter_view"
-            android:layout_marginStart="8dp" />
+            android:layout_marginStart="4dp" />
 
     </LinearLayout>
 

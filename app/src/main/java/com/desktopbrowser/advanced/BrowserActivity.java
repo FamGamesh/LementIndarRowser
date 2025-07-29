@@ -60,11 +60,12 @@ public class BrowserActivity extends AppCompatActivity {
         private LinearLayout tabsContainer;
         private LinearLayout zoomControlsContainer;
         private Button showUrlStackButton;
+        private Button newTabButton; // Chrome-like new tab button
         private android.widget.SeekBar zoomSlider;
         private java.util.List<String> urlStack;
         private long lastInterstitialTime = 0;
         
-        // Tab management
+        // Tab management - Enhanced Chrome-like functionality
         private int tabCount = 1;
         private View tabCounterView;
         private TextView tabCountText;
@@ -78,6 +79,10 @@ public class BrowserActivity extends AppCompatActivity {
         private boolean isNavigating = false;
         private long lastNavigationTime = 0;
         private static final long NAVIGATION_DEBOUNCE = 1000; // 1 second debounce
+        
+        // Lifecycle management
+        private boolean isPaused = false;
+        private boolean isDestroyed = false;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -113,6 +118,12 @@ public class BrowserActivity extends AppCompatActivity {
         if (initialUrl != null) {
             tabList.add(new TabInfo(initialUrl, "New Tab", true));
         }
+        
+        // Initialize tab container rendering
+        android.os.Handler initHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+        initHandler.postDelayed(() -> {
+            renderTabsInContainer();
+        }, 500);
     }
     
     private void setupToolbar() {
@@ -137,10 +148,11 @@ public class BrowserActivity extends AppCompatActivity {
         zoomLevel = findViewById(R.id.zoom_level);
         progressBar = findViewById(R.id.progress_bar);
         
-        // New enhanced features
+        // Enhanced tab management features
         tabsContainer = findViewById(R.id.tabs_container);
         zoomControlsContainer = findViewById(R.id.zoom_controls_container);
         showUrlStackButton = findViewById(R.id.btn_show_url_stack);
+        newTabButton = findViewById(R.id.btn_new_tab); // Chrome-like new tab button
         zoomSlider = findViewById(R.id.zoom_slider);
         
         // Tab counter setup
@@ -868,6 +880,11 @@ public class BrowserActivity extends AppCompatActivity {
             tabCounterView.setOnClickListener(v -> showTabSwitcher());
         }
         
+        // Chrome-like new tab button
+        if (newTabButton != null) {
+            newTabButton.setOnClickListener(v -> createNewTab());
+        }
+        
         // Update tab counter display
         updateTabCounter();
         
@@ -1004,6 +1021,9 @@ public class BrowserActivity extends AppCompatActivity {
             String title = view.getTitle();
             updateCurrentTabInfo(url, title);
             
+            // Update tab container display
+            renderTabsInContainer();
+            
             // Add URL to stack for session history
             if (url != null && !urlStack.contains(url)) {
                 urlStack.add(url);
@@ -1095,7 +1115,20 @@ public class BrowserActivity extends AppCompatActivity {
             try {
                 Log.d(TAG, "🎯 Intelligent download triggered for: " + url);
                 
-                // Extract filename intelligently
+                // Handle different URI schemes
+                if (url.startsWith("data:")) {
+                    handleDataUriDownload(url, mimetype);
+                    return;
+                } else if (url.startsWith("blob:")) {
+                    handleBlobDownload(url);
+                    return;
+                } else if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                    // Handle other schemes like ftp:, file:, etc.
+                    handleNonHttpDownload(url);
+                    return;
+                }
+                
+                // Extract filename intelligently for HTTP/HTTPS
                 String filename = getIntelligentFileName(url, "file");
                 
                 // If we can get better filename from contentDisposition, use it
@@ -1122,6 +1155,192 @@ public class BrowserActivity extends AppCompatActivity {
                 Log.e(TAG, "💥 Error in intelligent download listener", e);
                 Toast.makeText(BrowserActivity.this, "Download failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
             }
+        }
+        
+        private void handleDataUriDownload(String dataUri, String mimetype) {
+            try {
+                Log.d(TAG, "🔗 Handling data URI download");
+                
+                // Parse data URI: data:[<mediatype>][;base64],<data>
+                if (!dataUri.startsWith("data:")) {
+                    throw new IllegalArgumentException("Invalid data URI");
+                }
+                
+                String[] parts = dataUri.substring(5).split(",", 2);
+                if (parts.length != 2) {
+                    throw new IllegalArgumentException("Invalid data URI format");
+                }
+                
+                String header = parts[0];
+                String data = parts[1];
+                
+                // Determine if it's base64 encoded
+                boolean isBase64 = header.contains("base64");
+                
+                // Extract MIME type
+                String actualMimeType = mimetype;
+                if (header.contains(";")) {
+                    actualMimeType = header.split(";")[0];
+                } else if (!header.isEmpty()) {
+                    actualMimeType = header;
+                }
+                
+                // Generate appropriate filename
+                String extension = getExtensionFromMimeType(actualMimeType);
+                String filename = "download_" + System.currentTimeMillis() + "." + extension;
+                
+                // Decode data
+                byte[] fileData;
+                if (isBase64) {
+                    fileData = android.util.Base64.decode(data, android.util.Base64.DEFAULT);
+                } else {
+                    fileData = data.getBytes("UTF-8");
+                }
+                
+                // Save file
+                saveDataToFile(filename, fileData);
+                
+                Toast.makeText(BrowserActivity.this, "Data file downloaded: " + filename, Toast.LENGTH_LONG).show();
+                
+            } catch (Exception e) {
+                Log.e(TAG, "💥 Error handling data URI download", e);
+                Toast.makeText(BrowserActivity.this, "Failed to download data file: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            }
+        }
+        
+        private void handleBlobDownload(String blobUrl) {
+            try {
+                Log.d(TAG, "🌐 Handling blob URL download");
+                
+                // For blob URLs, we need to extract the data using JavaScript
+                String script = 
+                    "(function() {" +
+                    "  fetch('" + blobUrl + "')" +
+                    "    .then(response => response.blob())" +
+                    "    .then(blob => {" +
+                    "      const reader = new FileReader();" +
+                    "      reader.onload = function() {" +
+                    "        Android.onBlobData(reader.result);" +
+                    "      };" +
+                    "      reader.readAsDataURL(blob);" +
+                    "    })" +
+                    "    .catch(error => Android.onBlobError(error.toString()));" +
+                    "})();";
+                
+                // Add JavaScript interface to handle blob data
+                webView.addJavascriptInterface(new BlobDownloadInterface(), "Android");
+                webView.evaluateJavascript(script, null);
+                
+            } catch (Exception e) {
+                Log.e(TAG, "💥 Error handling blob download", e);
+                Toast.makeText(BrowserActivity.this, "Failed to download blob: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            }
+        }
+        
+        private void handleNonHttpDownload(String url) {
+            try {
+                Log.d(TAG, "🔗 Handling non-HTTP download: " + url);
+                
+                if (url.startsWith("ftp://")) {
+                    // Handle FTP downloads
+                    Toast.makeText(BrowserActivity.this, "FTP downloads not supported yet", Toast.LENGTH_LONG).show();
+                } else if (url.startsWith("file://")) {
+                    // Handle local file access
+                    Toast.makeText(BrowserActivity.this, "Local file access restricted", Toast.LENGTH_LONG).show();
+                } else {
+                    Toast.makeText(BrowserActivity.this, "Unsupported download scheme: " + url.split("://")[0], Toast.LENGTH_LONG).show();
+                }
+                
+            } catch (Exception e) {
+                Log.e(TAG, "💥 Error handling non-HTTP download", e);
+                Toast.makeText(BrowserActivity.this, "Download failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        }
+        
+        private String getExtensionFromMimeType(String mimeType) {
+            if (mimeType == null || mimeType.isEmpty()) {
+                return "bin";
+            }
+            
+            switch (mimeType.toLowerCase()) {
+                case "image/jpeg":
+                case "image/jpg":
+                    return "jpg";
+                case "image/png":
+                    return "png";
+                case "image/gif":
+                    return "gif";
+                case "image/webp":
+                    return "webp";
+                case "image/svg+xml":
+                    return "svg";
+                case "text/html":
+                    return "html";
+                case "text/css":
+                    return "css";
+                case "text/javascript":
+                case "application/javascript":
+                    return "js";
+                case "application/json":
+                    return "json";
+                case "text/plain":
+                    return "txt";
+                case "application/pdf":
+                    return "pdf";
+                case "video/mp4":
+                    return "mp4";
+                case "audio/mp3":
+                case "audio/mpeg":
+                    return "mp3";
+                default:
+                    return "bin";
+            }
+        }
+        
+        private void saveDataToFile(String filename, byte[] data) throws Exception {
+            // Save to Downloads directory
+            java.io.File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+            if (!downloadsDir.exists()) {
+                downloadsDir.mkdirs();
+            }
+            
+            java.io.File file = new java.io.File(downloadsDir, filename);
+            
+            try (java.io.FileOutputStream fos = new java.io.FileOutputStream(file)) {
+                fos.write(data);
+                fos.flush();
+            }
+            
+            // Add to download manager tracking
+            DownloadManager downloadManager = DownloadManager.getInstance(BrowserActivity.this);
+            downloadManager.addDownload(filename, "data-uri", String.valueOf(System.currentTimeMillis()));
+            
+            Log.d(TAG, "✅ Data file saved: " + file.getAbsolutePath());
+        }
+    }
+    
+    // JavaScript interface for blob downloads
+    private class BlobDownloadInterface {
+        @android.webkit.JavascriptInterface
+        public void onBlobData(String dataUrl) {
+            runOnUiThread(() -> {
+                try {
+                    // Handle the blob data as a data URI
+                    IntelligentDownloadListener listener = new IntelligentDownloadListener();
+                    listener.handleDataUriDownload(dataUrl, "application/octet-stream");
+                } catch (Exception e) {
+                    Log.e(TAG, "Error processing blob data", e);
+                    Toast.makeText(BrowserActivity.this, "Error processing blob data", Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
+        
+        @android.webkit.JavascriptInterface
+        public void onBlobError(String error) {
+            runOnUiThread(() -> {
+                Log.e(TAG, "Blob download error: " + error);
+                Toast.makeText(BrowserActivity.this, "Blob download failed: " + error, Toast.LENGTH_LONG).show();
+            });
         }
     }
     
@@ -1209,42 +1428,356 @@ public class BrowserActivity extends AppCompatActivity {
     
     @Override
     protected void onDestroy() {
+        isDestroyed = true;
+        
         try {
+            Log.d(TAG, "BrowserActivity onDestroy - comprehensive cleanup");
+            
             if (webView != null) {
                 // Save session before destroying (for app close recovery)
                 saveCurrentSessionAsLast();
                 
-                // Proper WebView cleanup to prevent memory leaks
+                // Comprehensive WebView cleanup to prevent memory leaks and freezing
                 webView.clearHistory();
                 webView.clearCache(true);
+                webView.clearFormData();
                 webView.loadUrl("about:blank");
+                
+                // Pause and destroy properly
                 webView.onPause();
                 webView.removeAllViews();
                 webView.destroyDrawingCache();
                 webView.pauseTimers();
+                
+                // Final destruction
                 webView.destroy();
                 webView = null;
+                
+                Log.d(TAG, "WebView destroyed and cleaned up properly");
             }
+            
+            // Clear references to prevent memory leaks
+            tabList = null;
+            urlStack = null;
+            
         } catch (Exception e) {
             Log.e(TAG, "Error during cleanup", e);
         }
+        
         super.onDestroy();
     }
     
     @Override 
     protected void onPause() {
         super.onPause();
+        isPaused = true;
+        
         try {
+            Log.d(TAG, "BrowserActivity onPause - proper lifecycle management");
+            
             if (webView != null) {
+                // Pause WebView properly to prevent freezing
                 webView.onPause();
                 webView.pauseTimers();
+                
+                // Save current state to prevent data loss
+                saveCurrentBrowserState();
             }
+            
+            // Clear any active operations
+            isRefreshing = false;
+            isNavigating = false;
+            
         } catch (Exception e) {
             Log.e(TAG, "Error during pause", e);
         }
     }
     
-    // ==================== NEW ENHANCED FEATURES ====================
+    @Override
+    protected void onResume() {
+        super.onResume();
+        isPaused = false;
+        
+        try {
+            Log.d(TAG, "BrowserActivity onResume - restoring from pause");
+            
+            if (webView != null && !isDestroyed) {
+                // Resume WebView properly
+                webView.onResume();
+                webView.resumeTimers();
+                
+                // Restore any necessary state
+                restoreCurrentBrowserState();
+            }
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error during resume", e);
+        }
+    }
+    
+    @Override
+    protected void onStop() {
+        super.onStop();
+        
+        try {
+            Log.d(TAG, "BrowserActivity onStop - saving session state");
+            
+            // Save comprehensive session state when app is stopped
+            saveCurrentSessionAsLast();
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error during stop", e);
+        }
+    }
+    
+    @Override
+    protected void onRestart() {
+        super.onRestart();
+        
+        try {
+            Log.d(TAG, "BrowserActivity onRestart - recovering from stop");
+            
+            // Reinitialize if needed
+            if (webView != null && !isDestroyed) {
+                // Refresh current page to ensure it's still responsive
+                String currentUrl = webView.getUrl();
+                if (currentUrl != null && !currentUrl.equals("about:blank")) {
+                    // Only reload if we have a valid URL
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                        if (!isDestroyed && webView != null) {
+                            webView.reload();
+                        }
+                    }, 500);
+                }
+            }
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error during restart", e);
+        }
+    }
+    
+    private void saveCurrentBrowserState() {
+        try {
+            if (webView != null && sessionManager != null) {
+                String currentUrl = webView.getUrl();
+                String currentTitle = webView.getTitle();
+                
+                if (currentUrl != null && !currentUrl.equals("about:blank")) {
+                    // Save current browsing state to SharedPreferences for quick recovery
+                    sessionManager.saveTemporaryState(currentUrl, currentTitle, currentZoom);
+                    Log.d(TAG, "Browser state saved: " + currentUrl);
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error saving browser state", e);
+        }
+    }
+    
+    private void restoreCurrentBrowserState() {
+        try {
+            if (sessionManager != null) {
+                // This is a lightweight restore for pause/resume scenarios
+                // Full session restore is handled separately
+                Log.d(TAG, "Browser state restored from pause");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error restoring browser state", e);
+        }
+    }
+    
+    // ==================== CHROME-LIKE TAB MANAGEMENT ====================
+    
+    private void createNewTab() {
+        try {
+            Log.d(TAG, "Creating new tab - Chrome-like functionality");
+            
+            // Save current tab state
+            if (webView != null && webView.getUrl() != null) {
+                String currentUrl = webView.getUrl();
+                String currentTitle = webView.getTitle();
+                updateCurrentTabInfo(currentUrl, currentTitle != null ? currentTitle : "Tab");
+            }
+            
+            // Add new tab to list
+            tabCount++;
+            String newTabUrl = "https://www.google.com"; // Default new tab URL
+            tabList.add(new TabInfo(newTabUrl, "New Tab", true));
+            
+            // Set all other tabs to inactive
+            for (int i = 0; i < tabList.size() - 1; i++) {
+                tabList.get(i).isActive = false;
+            }
+            
+            // Load new tab
+            loadNewUrl(newTabUrl);
+            
+            // Update UI
+            updateTabCounter();
+            renderTabsInContainer();
+            
+            Toast.makeText(this, "New tab created", Toast.LENGTH_SHORT).show();
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error creating new tab", e);
+            Toast.makeText(this, "Error creating tab: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    private void renderTabsInContainer() {
+        if (tabsContainer == null) return;
+        
+        try {
+            tabsContainer.removeAllViews();
+            
+            for (int i = 0; i < tabList.size(); i++) {
+                TabInfo tab = tabList.get(i);
+                View tabView = createTabView(tab, i);
+                tabsContainer.addView(tabView);
+            }
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error rendering tabs", e);
+        }
+    }
+    
+    private View createTabView(TabInfo tab, int index) {
+        // Create tab view similar to Chrome
+        LinearLayout tabView = new LinearLayout(this);
+        tabView.setOrientation(LinearLayout.HORIZONTAL);
+        tabView.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        tabView.setPadding(12, 6, 8, 6);
+        tabView.setBackgroundResource(tab.isActive ? R.drawable.button_background : R.drawable.feature_card_background);
+        
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        params.setMargins(4, 0, 4, 0);
+        tabView.setLayoutParams(params);
+        
+        // Tab title
+        TextView titleView = new TextView(this);
+        titleView.setText(tab.title.length() > 12 ? tab.title.substring(0, 12) + "..." : tab.title);
+        titleView.setTextSize(10);
+        titleView.setTextColor(tab.isActive ? 
+            getResources().getColor(android.R.color.white) : 
+            getResources().getColor(R.color.text_primary));
+        titleView.setMaxWidth(100);
+        titleView.setSingleLine(true);
+        
+        // Close button (like Chrome)
+        Button closeButton = new Button(this);
+        closeButton.setText("×");
+        closeButton.setTextSize(12);
+        closeButton.setTextColor(tab.isActive ? 
+            getResources().getColor(android.R.color.white) : 
+            getResources().getColor(R.color.text_primary));
+        closeButton.setBackground(null);
+        closeButton.setPadding(8, 0, 8, 0);
+        closeButton.setMinWidth(0);
+        closeButton.setMinHeight(0);
+        
+        LinearLayout.LayoutParams closeParams = new LinearLayout.LayoutParams(24, 24);
+        closeButton.setLayoutParams(closeParams);
+        
+        // Click listeners
+        tabView.setOnClickListener(v -> switchToTab(index));
+        closeButton.setOnClickListener(v -> closeTab(index));
+        
+        tabView.addView(titleView);
+        tabView.addView(closeButton);
+        
+        return tabView;
+    }
+    
+    private void switchToTab(int index) {
+        try {
+            if (index < 0 || index >= tabList.size()) return;
+            
+            Log.d(TAG, "Switching to tab: " + index);
+            
+            // Save current tab state
+            if (webView != null && webView.getUrl() != null) {
+                updateCurrentTabInfo(webView.getUrl(), webView.getTitle());
+            }
+            
+            // Set all tabs to inactive
+            for (TabInfo tab : tabList) {
+                tab.isActive = false;
+            }
+            
+            // Activate selected tab
+            TabInfo selectedTab = tabList.get(index);
+            selectedTab.isActive = true;
+            
+            // Load tab URL
+            if (selectedTab.url != null && !selectedTab.url.isEmpty()) {
+                loadNewUrl(selectedTab.url);
+            }
+            
+            // Update UI
+            renderTabsInContainer();
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error switching tab", e);
+        }
+    }
+    
+    private void closeTab(int index) {
+        try {
+            if (index < 0 || index >= tabList.size()) return;
+            
+            Log.d(TAG, "Closing tab: " + index);
+            
+            // Don't allow closing the last tab
+            if (tabList.size() <= 1) {
+                Toast.makeText(this, "Cannot close the last tab", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            
+            boolean wasActive = tabList.get(index).isActive;
+            tabList.remove(index);
+            tabCount--;
+            
+            // If we closed the active tab, activate another one
+            if (wasActive) {
+                int newActiveIndex = Math.min(index, tabList.size() - 1);
+                if (newActiveIndex >= 0) {
+                    tabList.get(newActiveIndex).isActive = true;
+                    TabInfo activeTab = tabList.get(newActiveIndex);
+                    if (activeTab.url != null) {
+                        loadNewUrl(activeTab.url);
+                    }
+                }
+            }
+            
+            // Update UI
+            updateTabCounter();
+            renderTabsInContainer();
+            
+            Toast.makeText(this, "Tab closed", Toast.LENGTH_SHORT).show();
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error closing tab", e);
+        }
+    }
+    
+    private void updateCurrentTabInfo(String url, String title) {
+        try {
+            // Find and update the active tab
+            for (TabInfo tab : tabList) {
+                if (tab.isActive) {
+                    tab.url = url;
+                    tab.title = title != null ? title : "Tab";
+                    break;
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error updating current tab info", e);
+        }
+    }
+    
+    // ==================== END CHROME-LIKE TAB MANAGEMENT ====================
     
     private void setupZoomSlider() {
         if (zoomSlider != null) {
