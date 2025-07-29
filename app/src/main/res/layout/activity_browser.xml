@@ -16,6 +16,7 @@
 
     <!-- Tab Management Section with Chrome-like functionality -->
     <LinearLayout
+        android:id="@+id/tab_management_section"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"

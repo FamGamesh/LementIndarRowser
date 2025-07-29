@@ -179,6 +179,34 @@ public class BrowserActivity extends AppCompatActivity {
         
         // Check if restoring session
         checkSessionRestore();
+        
+        // Apply minimal UI mode if this is a quick access site
+        applyMinimalUIMode();
+    }
+    
+    private void applyMinimalUIMode() {
+        boolean isQuickAccessMode = getIntent().getBooleanExtra("is_quick_access_mode", false);
+        
+        if (isQuickAccessMode) {
+            android.util.Log.d(TAG, "🎯 Applying minimal UI mode for quick access site");
+            
+            // Hide the entire tab management section
+            LinearLayout tabManagementSection = findViewById(R.id.tab_management_section);
+            if (tabManagementSection != null) {
+                tabManagementSection.setVisibility(View.GONE);
+                android.util.Log.d(TAG, "✅ Tab management section hidden");
+            }
+            
+            // Hide the address bar
+            if (addressBar != null) {
+                addressBar.setVisibility(View.GONE);
+                android.util.Log.d(TAG, "✅ Address bar hidden");
+            }
+            
+            android.util.Log.d(TAG, "✅ Minimal UI mode applied - hidden search bar and tabs");
+        } else {
+            android.util.Log.d(TAG, "🌐 Full UI mode - showing all elements");
+        }
     }
     
     @SuppressLint("SetJavaScriptEnabled")

@@ -95,7 +95,7 @@ public class MainActivity extends AppCompatActivity {
     
     private void setupQuickAccess() {
         String[][] quickSites = {
-            {"Google", "https://www.google.com", "google"},
+            {"Wikipedia", "https://www.wikipedia.org", "wikipedia"},
             {"Instagram", "https://www.instagram.com", "instagram"},
             {"Reddit", "https://www.reddit.com", "reddit"},
             {"Twitter", "https://www.x.com", "twitter"},
@@ -132,9 +132,9 @@ public class MainActivity extends AppCompatActivity {
         
         // Set platform-specific background and icon
         switch (platform) {
-            case "google":
+            case "wikipedia":
                 button.setBackgroundResource(R.drawable.quick_access_background);
-                button.setCompoundDrawablesWithIntrinsicBounds(0, R.drawable.ic_google, 0, 0);
+                button.setCompoundDrawablesWithIntrinsicBounds(0, R.drawable.ic_wikipedia, 0, 0);
                 break;
             case "instagram":
                 button.setBackgroundResource(R.drawable.instagram_background);
@@ -164,13 +164,13 @@ public class MainActivity extends AppCompatActivity {
         // Set drawable padding for better icon positioning
         button.setCompoundDrawablePadding(12);
         
-        // Add click listener to button - Direct access without ads (AdMob compliance)
+        // Add click listener to button - Opens in minimal UI mode for quick access compliance
         button.setOnClickListener(v -> {
             android.util.Log.d("MainActivity", "🎯 Quick access button clicked: " + name + " -> " + finalUrl);
-            // Direct URL opening without interstitial ads to comply with AdMob policies
+            // Open with minimal UI mode for quick access sites
             if (finalUrl != null && !finalUrl.isEmpty()) {
-                android.util.Log.d("MainActivity", "✅ Opening URL directly: " + finalUrl);
-                openUrl(finalUrl);
+                android.util.Log.d("MainActivity", "✅ Opening Quick Access URL with minimal UI: " + finalUrl);
+                openUrl(finalUrl, true); // true = quick access mode (minimal UI)
             } else {
                 Toast.makeText(MainActivity.this, "URL not available", Toast.LENGTH_SHORT).show();
             }
@@ -178,13 +178,13 @@ public class MainActivity extends AppCompatActivity {
         
         card.addView(button);
         
-        // Add click listener to card - Direct access without ads (AdMob compliance)
+        // Add click listener to card - Opens in minimal UI mode for quick access compliance
         card.setOnClickListener(v -> {
             android.util.Log.d("MainActivity", "🎯 Quick access card clicked: " + name + " -> " + finalUrl);
-            // Direct URL opening without interstitial ads to comply with AdMob policies
+            // Open with minimal UI mode for quick access sites
             if (finalUrl != null && !finalUrl.isEmpty()) {
-                android.util.Log.d("MainActivity", "✅ Opening URL directly: " + finalUrl);
-                openUrl(finalUrl);
+                android.util.Log.d("MainActivity", "✅ Opening Quick Access URL with minimal UI: " + finalUrl);
+                openUrl(finalUrl, true); // true = quick access mode (minimal UI)
             } else {
                 Toast.makeText(MainActivity.this, "URL not available", Toast.LENGTH_SHORT).show();
             }
@@ -259,6 +259,14 @@ public class MainActivity extends AppCompatActivity {
     private void openUrl(String url) {
         Intent intent = new Intent(MainActivity.this, BrowserActivity.class);
         intent.putExtra("url", url);
+        intent.putExtra("is_quick_access_mode", false); // Normal mode for search
+        startActivity(intent);
+    }
+    
+    private void openUrl(String url, boolean isQuickAccess) {
+        Intent intent = new Intent(MainActivity.this, BrowserActivity.class);
+        intent.putExtra("url", url);
+        intent.putExtra("is_quick_access_mode", isQuickAccess);
         startActivity(intent);
     }
     
