@@ -1598,8 +1598,14 @@ public class BrowserActivity extends AppCompatActivity {
     }
     
     private void updateNavigationButtons() {
-        backButton.setEnabled(webView.canGoBack());
-        forwardButton.setEnabled(webView.canGoForward());
+        // Navigation buttons have been moved to the three-lines menu system
+        // Check if buttons exist before trying to update them (for backwards compatibility)
+        if (backButton != null) {
+            backButton.setEnabled(webView.canGoBack());
+        }
+        if (forwardButton != null) {
+            forwardButton.setEnabled(webView.canGoForward());
+        }
     }
     
     @Override
