@@ -485,8 +485,27 @@ public class BrowserActivity extends AppCompatActivity {
     
     private void downloadFile(String url, String filename) {
         try {
-            Log.d(TAG, "📥 Starting download - URL: " + url + ", Filename: " + filename);
+            Log.d(TAG, "📥 Starting enhanced download - URL: " + url + ", Filename: " + filename);
             
+            // ENHANCED: Handle all URI types intelligently
+            if (url.startsWith("data:")) {
+                Log.d(TAG, "🔗 Redirecting data URI to specialized handler");
+                IntelligentDownloadListener listener = new IntelligentDownloadListener();
+                listener.handleDataUriDownload(url, "");
+                return;
+            } else if (url.startsWith("blob:")) {
+                Log.d(TAG, "🌐 Redirecting blob URI to specialized handler");
+                IntelligentDownloadListener listener = new IntelligentDownloadListener();
+                listener.handleBlobDownload(url);
+                return;
+            } else if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                Log.d(TAG, "🔗 Redirecting non-HTTP URI to specialized handler");
+                IntelligentDownloadListener listener = new IntelligentDownloadListener();
+                listener.handleNonHttpDownload(url);
+                return;
+            }
+            
+            // Continue with regular HTTP/HTTPS download
             android.app.DownloadManager downloadManager = (android.app.DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
             
             android.app.DownloadManager.Request request = new android.app.DownloadManager.Request(Uri.parse(url));
@@ -1258,7 +1277,7 @@ public class BrowserActivity extends AppCompatActivity {
             }
         }
         
-        private void handleDataUriDownload(String dataUri, String mimetype) {
+        public void handleDataUriDownload(String dataUri, String mimetype) {
             try {
                 Log.d(TAG, "🔗 Handling data URI download");
                 
@@ -1309,7 +1328,7 @@ public class BrowserActivity extends AppCompatActivity {
             }
         }
         
-        private void handleBlobDownload(String blobUrl) {
+        public void handleBlobDownload(String blobUrl) {
             try {
                 Log.d(TAG, "🌐 Handling blob URL download");
                 
@@ -1338,7 +1357,7 @@ public class BrowserActivity extends AppCompatActivity {
             }
         }
         
-        private void handleNonHttpDownload(String url) {
+        public void handleNonHttpDownload(String url) {
             try {
                 Log.d(TAG, "🔗 Handling non-HTTP download: " + url);
                 
@@ -1364,6 +1383,7 @@ public class BrowserActivity extends AppCompatActivity {
             }
             
             switch (mimeType.toLowerCase()) {
+                // Images
                 case "image/jpeg":
                 case "image/jpg":
                     return "jpg";
@@ -1375,6 +1395,15 @@ public class BrowserActivity extends AppCompatActivity {
                     return "webp";
                 case "image/svg+xml":
                     return "svg";
+                case "image/tiff":
+                    return "tiff";
+                case "image/bmp":
+                    return "bmp";
+                case "image/ico":
+                case "image/x-icon":
+                    return "ico";
+                
+                // Documents
                 case "text/html":
                     return "html";
                 case "text/css":
@@ -1388,11 +1417,69 @@ public class BrowserActivity extends AppCompatActivity {
                     return "txt";
                 case "application/pdf":
                     return "pdf";
+                case "application/msword":
+                    return "doc";
+                case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                    return "docx";
+                case "application/vnd.ms-excel":
+                    return "xls";
+                case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+                    return "xlsx";
+                case "application/vnd.ms-powerpoint":
+                    return "ppt";
+                case "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+                    return "pptx";
+                case "text/csv":
+                    return "csv";
+                case "application/rtf":
+                    return "rtf";
+                
+                // Archives
+                case "application/zip":
+                    return "zip";
+                case "application/x-rar-compressed":
+                    return "rar";
+                case "application/x-7z-compressed":
+                    return "7z";
+                case "application/x-tar":
+                    return "tar";
+                case "application/gzip":
+                    return "gz";
+                
+                // Media
                 case "video/mp4":
                     return "mp4";
+                case "video/avi":
+                    return "avi";
+                case "video/quicktime":
+                    return "mov";
+                case "video/x-msvideo":
+                    return "avi";
+                case "video/webm":
+                    return "webm";
                 case "audio/mp3":
                 case "audio/mpeg":
                     return "mp3";
+                case "audio/wav":
+                    return "wav";
+                case "audio/ogg":
+                    return "ogg";
+                case "audio/aac":
+                    return "aac";
+                case "audio/flac":
+                    return "flac";
+                
+                // Applications
+                case "application/x-msdownload":
+                case "application/exe":
+                    return "exe";
+                case "application/x-msi":
+                    return "msi";
+                case "application/vnd.android.package-archive":
+                    return "apk";
+                case "application/java-archive":
+                    return "jar";
+                
                 default:
                     return "bin";
             }
