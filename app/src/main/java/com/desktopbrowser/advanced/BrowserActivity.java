@@ -631,6 +631,138 @@ public class BrowserActivity extends AppCompatActivity {
         return String.format("%.1f %s", bytes / Math.pow(1024, exp), units[exp]);
     }
     
+    /**
+     * Intelligent download link detection
+     */
+    private boolean isDownloadLink(String url) {
+        if (url == null || url.isEmpty()) return false;
+        
+        try {
+            // Convert to lowercase for case-insensitive matching
+            String urlLower = url.toLowerCase();
+            
+            // 1. Check for common download file extensions
+            String[] downloadExtensions = {
+                ".apk", ".exe", ".msi", ".dmg", ".pkg", ".deb", ".rpm",  // Executables/Installers
+                ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz",    // Archives
+                ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", // Documents
+                ".mp3", ".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv",  // Media files
+                ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".svg", ".webp", // Images (when direct linked)
+                ".iso", ".img", ".bin", ".torrent", ".ipa",              // Disk images & others
+                ".epub", ".mobi", ".azw", ".azw3",                       // E-books
+                ".ttf", ".otf", ".woff", ".woff2",                       // Fonts
+                ".jar", ".war", ".ear",                                  // Java archives
+                ".cab", ".nsi", ".appx", ".msix",                        // Windows packages
+                ".crx", ".xpi"                                           // Browser extensions
+            };
+            
+            // Check if URL ends with any download extension
+            for (String ext : downloadExtensions) {
+                if (urlLower.endsWith(ext)) {
+                    Log.d(TAG, "🎯 Download link detected by extension: " + ext + " - " + url);
+                    return true;
+                }
+            }
+            
+            // 2. Check for download-specific URL patterns
+            String[] downloadPatterns = {
+                "/download/", "/dl/", "/files/", "/get/", "/fetch/",
+                "/attachment/", "/media/", "/content/", "/static/",
+                "download=", "dl=", "file=", "attachment=",
+                "/d/", "/f/", "/file/", "/document/"
+            };
+            
+            for (String pattern : downloadPatterns) {
+                if (urlLower.contains(pattern)) {
+                    // Additional check: if it contains download pattern AND has suspicious parameters
+                    if (urlLower.contains("=") || urlLower.length() > 50) {
+                        Log.d(TAG, "🎯 Download link detected by pattern: " + pattern + " - " + url);
+                        return true;
+                    }
+                }
+            }
+            
+            // 3. Check for known download domains
+            String[] downloadDomains = {
+                "up4ever.download", "mediafire.com", "dropbox.com", "drive.google.com",
+                "mega.nz", "4shared.com", "rapidgator.net", "uploaded.net",
+                "zippyshare.com", "sendspace.com", "anonfiles.com", "wetransfer.com",
+                "file-upload.com", "turbobit.net", "nitroflare.com", "keep2share.cc",
+                "depositfiles.com", "filefactory.com", "hotfile.com", "fileserve.com",
+                "freakshare.com", "extabit.com", "letitbit.net", "vip-file.com",
+                "download.com", "softonic.com", "cnet.com", "sourceforge.net",
+                "github.com", "gitlab.com", "bitbucket.org"
+            };
+            
+            for (String domain : downloadDomains) {
+                if (urlLower.contains(domain)) {
+                    Log.d(TAG, "🎯 Download link detected by domain: " + domain + " - " + url);
+                    return true;
+                }
+            }
+            
+            // 4. Check for URLs with download-like characteristics
+            // Long random strings often indicate file hosting services
+            if (urlLower.length() > 80 && 
+                (urlLower.contains("/d/") || urlLower.contains("/file/") || 
+                 urlLower.matches(".*[a-f0-9]{20,}.*"))) { // Contains long hex strings
+                Log.d(TAG, "🎯 Download link detected by characteristics (long URL with patterns) - " + url);
+                return true;
+            }
+            
+            // 5. Check for direct file URLs (no HTML extension and has file-like path)
+            if (!urlLower.endsWith(".html") && !urlLower.endsWith(".htm") && 
+                !urlLower.endsWith(".php") && !urlLower.endsWith(".asp") && 
+                !urlLower.endsWith(".jsp") && !urlLower.endsWith("/") &&
+                urlLower.contains(".") && urlLower.lastIndexOf('.') > urlLower.lastIndexOf('/')) {
+                
+                String possibleExtension = urlLower.substring(urlLower.lastIndexOf('.'));
+                if (possibleExtension.length() >= 3 && possibleExtension.length() <= 5) {
+                    Log.d(TAG, "🎯 Download link detected as direct file URL - " + url);
+                    return true;
+                }
+            }
+            
+            Log.d(TAG, "🌐 URL identified as regular webpage: " + url);
+            return false;
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error in download link detection", e);
+            return false;
+        }
+    }
+    
+    /**
+     * Handle detected download link
+     */
+    private void handleDetectedDownloadLink(String url) {
+        try {
+            Log.d(TAG, "🚀 Handling detected download link: " + url);
+            
+            // Extract filename from URL for better UX
+            String filename = "Unknown File";
+            try {
+                String[] urlParts = url.split("/");
+                String lastPart = urlParts[urlParts.length - 1];
+                if (lastPart.contains(".") && lastPart.length() > 0) {
+                    filename = java.net.URLDecoder.decode(lastPart, "UTF-8");
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Could not extract filename from URL", e);
+            }
+            
+            // Show the beautiful download confirmation dialog
+            showDownloadConfirmationDialog(url, filename, "application/octet-stream", -1, () -> {
+                // Trigger download using the existing download system
+                intelligentDownload(url);
+            });
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error handling detected download link", e);
+            Toast.makeText(this, "Error processing download link", Toast.LENGTH_SHORT).show();
+        }
+    }
+    
     private void downloadFile(String url, String filename) {
         try {
             Log.d(TAG, "📥 Starting enhanced download - URL: " + url + ", Filename: " + filename);
@@ -1341,8 +1473,26 @@ public class BrowserActivity extends AppCompatActivity {
     }
     
     private void loadNewUrl(String url) {
-        webView.loadUrl(url);
-        addressBar.setText(url);
+        try {
+            Log.d(TAG, "🔗 Loading new URL: " + url);
+            
+            // ENHANCED: Check for download links before loading in WebView
+            if (isDownloadLink(url)) {
+                Log.d(TAG, "📥 Direct download link detected in loadNewUrl: " + url);
+                handleDetectedDownloadLink(url);
+                return; // Don't load in WebView
+            }
+            
+            // For regular URLs, load in WebView normally
+            webView.loadUrl(url);
+            addressBar.setText(url);
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error loading new URL", e);
+            // Fallback to original behavior
+            webView.loadUrl(url);
+            addressBar.setText(url);
+        }
     }
     
     private class AdvancedDesktopWebViewClient extends WebViewClient {
@@ -1426,10 +1576,31 @@ public class BrowserActivity extends AppCompatActivity {
         
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, String url) {
-            // Inject stealth immediately for new URLs
-            injectImmediateStealthScript();
-            view.loadUrl(url);
-            return true;
+            try {
+                Log.d(TAG, "🔍 Checking URL for download detection: " + url);
+                
+                // INTELLIGENT DOWNLOAD LINK DETECTION
+                if (isDownloadLink(url)) {
+                    Log.d(TAG, "📥 Download link detected, handling automatically: " + url);
+                    handleDetectedDownloadLink(url);
+                    return true; // Prevent WebView from loading the URL
+                }
+                
+                // For regular URLs, proceed with normal loading
+                Log.d(TAG, "🌐 Regular URL, proceeding with WebView loading: " + url);
+                
+                // Inject stealth immediately for new URLs
+                injectImmediateStealthScript();
+                view.loadUrl(url);
+                return true;
+                
+            } catch (Exception e) {
+                Log.e(TAG, "Error in shouldOverrideUrlLoading", e);
+                // Fallback to default behavior
+                injectImmediateStealthScript();
+                view.loadUrl(url);
+                return true;
+            }
         }
         
         @Override
