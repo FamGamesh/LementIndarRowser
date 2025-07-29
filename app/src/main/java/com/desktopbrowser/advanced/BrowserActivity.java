@@ -996,18 +996,21 @@ public class BrowserActivity extends AppCompatActivity {
             }
             
             // Apply zoom with crash prevention
-            float zoomFactor = currentZoom / 100.0f;
+            float tempZoomFactor = currentZoom / 100.0f;
             
             // Validate zoom factor to prevent extreme values
-            if (zoomFactor < 0.25f) zoomFactor = 0.25f;
-            if (zoomFactor > 2.0f) zoomFactor = 2.0f;
+            if (tempZoomFactor < 0.25f) tempZoomFactor = 0.25f;
+            if (tempZoomFactor > 2.0f) tempZoomFactor = 2.0f;
+            
+            // Create final variable for lambda expression
+            final float finalZoomFactor = tempZoomFactor;
             
             // Apply zoom safely on main thread
             runOnUiThread(() -> {
                 try {
                     if (webView != null && !isDestroyed) {
-                        webView.setScaleX(zoomFactor);
-                        webView.setScaleY(zoomFactor);
+                        webView.setScaleX(finalZoomFactor);
+                        webView.setScaleY(finalZoomFactor);
                         
                         // Update zoom level display
                         updateZoomLevel();
@@ -1021,7 +1024,7 @@ public class BrowserActivity extends AppCompatActivity {
                         showZoomControls();
                         hideZoomControlsDelayed();
                         
-                        Log.d(TAG, "Safe zoom applied: " + zoomFactor);
+                        Log.d(TAG, "Safe zoom applied: " + finalZoomFactor);
                     }
                 } catch (Exception e) {
                     Log.e(TAG, "Error applying safe zoom", e);
