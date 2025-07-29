@@ -297,7 +297,7 @@ public class SessionManager {
             android.util.Log.e("SessionManager", "Error saving comprehensive WebView state", e);
         }
         
-        return new TabSession(url, title, webViewState, cookieData, zoomLevel);
+        return new TabSession(url, title, webViewState, cookieData, zoomLevel, 0, 0, "{}", false);
     }
 
     // Enhanced WebView restoration with cookies
