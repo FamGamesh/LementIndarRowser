@@ -164,34 +164,30 @@ public class MainActivity extends AppCompatActivity {
         // Set drawable padding for better icon positioning
         button.setCompoundDrawablePadding(12);
         
-        // Add click listener to button - ALWAYS show interstitial ad first
+        // Add click listener to button - Direct access without ads (AdMob compliance)
         button.setOnClickListener(v -> {
             android.util.Log.d("MainActivity", "🎯 Quick access button clicked: " + name + " -> " + finalUrl);
-            // ALWAYS show interstitial ad before opening quick access sites using intelligent system
-            adManager.showQuickAccessAd(MainActivity.this, () -> {
-                if (finalUrl != null && !finalUrl.isEmpty()) {
-                    android.util.Log.d("MainActivity", "✅ Opening URL after ad: " + finalUrl);
-                    openUrl(finalUrl);
-                } else {
-                    Toast.makeText(MainActivity.this, "URL not available", Toast.LENGTH_SHORT).show();
-                }
-            });
+            // Direct URL opening without interstitial ads to comply with AdMob policies
+            if (finalUrl != null && !finalUrl.isEmpty()) {
+                android.util.Log.d("MainActivity", "✅ Opening URL directly: " + finalUrl);
+                openUrl(finalUrl);
+            } else {
+                Toast.makeText(MainActivity.this, "URL not available", Toast.LENGTH_SHORT).show();
+            }
         });
         
         card.addView(button);
         
-        // Add click listener to card - ALWAYS show interstitial ad first
+        // Add click listener to card - Direct access without ads (AdMob compliance)
         card.setOnClickListener(v -> {
             android.util.Log.d("MainActivity", "🎯 Quick access card clicked: " + name + " -> " + finalUrl);
-            // ALWAYS show interstitial ad before opening quick access sites using intelligent system
-            adManager.showQuickAccessAd(MainActivity.this, () -> {
-                if (finalUrl != null && !finalUrl.isEmpty()) {
-                    android.util.Log.d("MainActivity", "✅ Opening URL after ad: " + finalUrl);
-                    openUrl(finalUrl);
-                } else {
-                    Toast.makeText(MainActivity.this, "URL not available", Toast.LENGTH_SHORT).show();
-                }
-            });
+            // Direct URL opening without interstitial ads to comply with AdMob policies
+            if (finalUrl != null && !finalUrl.isEmpty()) {
+                android.util.Log.d("MainActivity", "✅ Opening URL directly: " + finalUrl);
+                openUrl(finalUrl);
+            } else {
+                Toast.makeText(MainActivity.this, "URL not available", Toast.LENGTH_SHORT).show();
+            }
         });
         
         GridLayout.LayoutParams params = new GridLayout.LayoutParams();
@@ -277,13 +273,35 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void openDownloads() {
-        android.util.Log.d("MainActivity", "🎯 Downloads section clicked - showing interstitial ad");
-        // ALWAYS show interstitial ad before opening downloads section
-        adManager.showDownloadsAd(this, () -> {
-            android.util.Log.d("MainActivity", "✅ Interstitial ad completed - opening downloads");
+        try {
+            android.util.Log.d("MainActivity", "🎯 Downloads section clicked - attempting to open");
+            
+            // First try to open downloads directly to check if activity exists
             Intent intent = new Intent(this, DownloadsActivity.class);
-            startActivity(intent);
-        });
+            
+            // Verify the activity exists
+            if (intent.resolveActivity(getPackageManager()) != null) {
+                android.util.Log.d("MainActivity", "📱 DownloadsActivity found, showing interstitial ad first");
+                
+                // Show interstitial ad before opening downloads section
+                adManager.showDownloadsAd(this, () -> {
+                    android.util.Log.d("MainActivity", "✅ Interstitial ad completed - opening downloads");
+                    try {
+                        startActivity(intent);
+                    } catch (Exception e) {
+                        android.util.Log.e("MainActivity", "Error starting DownloadsActivity after ad", e);
+                        Toast.makeText(this, "Error opening Downloads: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    }
+                });
+            } else {
+                android.util.Log.e("MainActivity", "❌ DownloadsActivity not found in manifest");
+                Toast.makeText(this, "Downloads feature not available", Toast.LENGTH_LONG).show();
+            }
+            
+        } catch (Exception e) {
+            android.util.Log.e("MainActivity", "💥 Error opening downloads section", e);
+            Toast.makeText(this, "Error accessing Downloads: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
     }
     
     private void setupSessionButtons() {

@@ -83,6 +83,13 @@ public class BrowserActivity extends AppCompatActivity {
         // Lifecycle management
         private boolean isPaused = false;
         private boolean isDestroyed = false;
+        
+        // Zoom crash prevention
+        private boolean isZooming = false;
+        private long lastZoomTime = 0;
+        private static final long ZOOM_DEBOUNCE = 300; // 300ms debounce for zoom
+        private Handler zoomHandler;
+        private Runnable pendingZoomRunnable;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -112,6 +119,7 @@ public class BrowserActivity extends AppCompatActivity {
         adManager = AdManager.getInstance(this);
         urlStack = new java.util.ArrayList<>();
         tabList = new java.util.ArrayList<>();
+        zoomHandler = new Handler(Looper.getMainLooper());
         
         // Initialize with first tab
         String initialUrl = getIntent().getStringExtra("url");
@@ -857,17 +865,21 @@ public class BrowserActivity extends AppCompatActivity {
             finish();
         });
         
-        // Advanced Desktop Zoom Controls
+        // Advanced Desktop Zoom Controls with crash prevention
         zoomInButton.setOnClickListener(v -> {
-            currentZoom = Math.min(currentZoom + 10, 200); // Max 200%
-            applyZoom();
-            showZoomControls();
+            safeDebouncedZoom(() -> {
+                currentZoom = Math.min(currentZoom + 10, 200); // Max 200%
+                applySafeZoom();
+                showZoomControls();
+            });
         });
         
         zoomOutButton.setOnClickListener(v -> {
-            currentZoom = Math.max(currentZoom - 10, 25); // Min 25%
-            applyZoom();
-            showZoomControls();
+            safeDebouncedZoom(() -> {
+                currentZoom = Math.max(currentZoom - 10, 25); // Min 25%
+                applySafeZoom();
+                showZoomControls();
+            });
         });
         
         // Show URL Stack button
@@ -912,32 +924,90 @@ public class BrowserActivity extends AppCompatActivity {
         });
     }
     
-    private void applyZoom() {
-        // Apply zoom with desktop-optimized scaling
-        float zoomFactor = currentZoom / 100.0f;
-        webView.setScaleX(zoomFactor);
-        webView.setScaleY(zoomFactor);
+    // Safe debounced zoom to prevent crashes
+    private void safeDebouncedZoom(Runnable zoomAction) {
+        long currentTime = System.currentTimeMillis();
         
-        // Update zoom level display
-        updateZoomLevel();
-        
-        // Update zoom slider
-        if (zoomSlider != null) {
-            zoomSlider.setProgress((int) currentZoom);
+        // Prevent multiple concurrent zoom operations
+        if (isZooming || (currentTime - lastZoomTime) < ZOOM_DEBOUNCE) {
+            Log.d(TAG, "Zoom operation debounced - preventing crash");
+            return;
         }
         
-        // Show zoom controls when zooming
-        showZoomControls();
-        hideZoomControlsDelayed();
+        // Cancel any pending zoom operations
+        if (pendingZoomRunnable != null) {
+            zoomHandler.removeCallbacks(pendingZoomRunnable);
+        }
         
-        // Inject zoom adjustment script for better rendering
-        String zoomScript = 
-            "javascript:(function() {" +
-            "  document.body.style.zoom = '" + zoomFactor + "';" +
-            "  document.documentElement.style.setProperty('--browser-zoom', '" + zoomFactor + "');" +
-            "})()";
+        lastZoomTime = currentTime;
+        isZooming = true;
         
-        webView.evaluateJavascript(zoomScript, null);
+        // Execute zoom operation safely
+        pendingZoomRunnable = () -> {
+            try {
+                if (!isDestroyed && !isPaused && webView != null) {
+                    zoomAction.run();
+                    Log.d(TAG, "Safe zoom operation completed");
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error during safe zoom operation", e);
+            } finally {
+                isZooming = false;
+            }
+        };
+        
+        // Delay execution slightly to prevent UI thread blocking
+        zoomHandler.postDelayed(pendingZoomRunnable, 50);
+    }
+    
+    private void applySafeZoom() {
+        try {
+            if (isDestroyed || isPaused || webView == null) {
+                Log.w(TAG, "Skipping zoom - activity not ready");
+                return;
+            }
+            
+            // Apply zoom with crash prevention
+            float zoomFactor = currentZoom / 100.0f;
+            
+            // Validate zoom factor to prevent extreme values
+            if (zoomFactor < 0.25f) zoomFactor = 0.25f;
+            if (zoomFactor > 2.0f) zoomFactor = 2.0f;
+            
+            // Apply zoom safely on main thread
+            runOnUiThread(() -> {
+                try {
+                    if (webView != null && !isDestroyed) {
+                        webView.setScaleX(zoomFactor);
+                        webView.setScaleY(zoomFactor);
+                        
+                        // Update zoom level display
+                        updateZoomLevel();
+                        
+                        // Update zoom slider safely
+                        if (zoomSlider != null) {
+                            zoomSlider.setProgress((int) currentZoom);
+                        }
+                        
+                        // Show zoom controls when zooming
+                        showZoomControls();
+                        hideZoomControlsDelayed();
+                        
+                        Log.d(TAG, "Safe zoom applied: " + zoomFactor);
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error applying safe zoom", e);
+                }
+            });
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error in applySafeZoom", e);
+        }
+    }
+    
+    // Legacy method - now redirects to safe version
+    private void applyZoom() {
+        applySafeZoom();
     }
     
     private void updateZoomLevel() {
@@ -1433,6 +1503,11 @@ public class BrowserActivity extends AppCompatActivity {
         try {
             Log.d(TAG, "BrowserActivity onDestroy - comprehensive cleanup");
             
+            // Cancel any pending zoom operations
+            if (zoomHandler != null && pendingZoomRunnable != null) {
+                zoomHandler.removeCallbacks(pendingZoomRunnable);
+            }
+            
             if (webView != null) {
                 // Save session before destroying (for app close recovery)
                 saveCurrentSessionAsLast();
@@ -1459,6 +1534,8 @@ public class BrowserActivity extends AppCompatActivity {
             // Clear references to prevent memory leaks
             tabList = null;
             urlStack = null;
+            zoomHandler = null;
+            pendingZoomRunnable = null;
             
         } catch (Exception e) {
             Log.e(TAG, "Error during cleanup", e);
@@ -1785,9 +1862,12 @@ public class BrowserActivity extends AppCompatActivity {
                 @Override
                 public void onProgressChanged(android.widget.SeekBar seekBar, int progress, boolean fromUser) {
                     if (fromUser) {
-                        currentZoom = Math.max(progress, 25); // Min 25%
-                        applyZoom();
-                        showZoomControls();
+                        // Use safe debounced zoom for slider changes
+                        safeDebouncedZoom(() -> {
+                            currentZoom = Math.max(progress, 25); // Min 25%
+                            applySafeZoom();
+                            showZoomControls();
+                        });
                     }
                 }
                 
