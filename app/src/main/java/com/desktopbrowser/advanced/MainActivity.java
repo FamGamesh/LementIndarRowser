@@ -228,11 +228,6 @@ public class MainActivity extends AppCompatActivity {
                 adManager = AdManager.getInstance(this);
             }
             
-            // Simplified flow - just open URL directly for now to test functionality
-            android.util.Log.d("MainActivity", "Opening URL directly: " + url);
-            openUrl(url);
-            
-            /* Original ad flow - commenting out temporarily to test basic functionality
             // Check if premium is still active
             if (sessionManager.isPremiumActive()) {
                 // User has active premium - show interstitial ad then browse directly
@@ -256,7 +251,6 @@ public class MainActivity extends AppCompatActivity {
                         });
                 });
             }
-            */
             
         } catch (Exception e) {
             android.util.Log.e("MainActivity", "Error in handleBrowse", e);
