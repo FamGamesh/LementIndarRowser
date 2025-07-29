@@ -71,7 +71,7 @@
 
     </androidx.cardview.widget.CardView>
 
-    <!-- Tab Management Section with Chrome-like functionality -->
+    <!-- FIXED: Chrome-like Tab Management Section -->
     <LinearLayout
         android:id="@+id/tab_management_section"
         android:layout_width="match_parent"
@@ -108,28 +108,62 @@
 
         </HorizontalScrollView>
 
-        <!-- Chrome-like New Tab Button -->
-        <Button
-            android:id="@+id/btn_new_tab"
-            android:layout_width="40dp"
-            android:layout_height="36dp"
-            android:text="+"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:textColor="@android:color/white"
-            android:background="@drawable/new_tab_button_background"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="4dp"
-            android:elevation="2dp" />
+        <!-- FIXED: Chrome-like Tab Counter and New Tab Section -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginStart="8dp">
 
-        <include
-            android:id="@+id/tab_counter"
-            layout="@layout/tab_counter_view"
-            android:layout_marginStart="4dp" />
+            <!-- Chrome-like Tab Counter with Box Design -->
+            <FrameLayout
+                android:id="@+id/tab_counter"
+                android:layout_width="48dp"
+                android:layout_height="36dp"
+                android:background="@drawable/tab_counter_background"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?android:attr/selectableItemBackground"
+                android:layout_marginEnd="4dp">
+
+                <!-- Tab Count Number -->
+                <TextView
+                    android:id="@+id/tab_count_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:text="1"
+                    android:textColor="@android:color/white"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:fontFamily="sans-serif-medium" />
+
+                <!-- Small underline indicator (like Chrome) -->
+                <View
+                    android:layout_width="20dp"
+                    android:layout_height="2dp"
+                    android:background="@android:color/white"
+                    android:layout_gravity="bottom|center_horizontal"
+                    android:layout_marginBottom="4dp" />
+
+            </FrameLayout>
+
+            <!-- Chrome-like Plus Button -->
+            <Button
+                android:id="@+id/btn_new_tab"
+                android:layout_width="40dp"
+                android:layout_height="36dp"
+                android:text="+"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:textColor="@android:color/white"
+                android:background="@drawable/new_tab_button_background"
+                android:elevation="2dp" />
+
+        </LinearLayout>
 
     </LinearLayout>
-
-    <!-- Tab Management Section with Chrome-like functionality -->
 
     <!-- Dynamic Zoom Controls (Initially Hidden) -->
     <LinearLayout
@@ -170,7 +204,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:max="150"
+            android:max="275"
             android:progress="65"
             android:layout_marginHorizontal="8dp" />
             

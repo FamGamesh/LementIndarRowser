@@ -43,50 +43,18 @@ public class DownloadsAdapter extends RecyclerView.Adapter<DownloadsAdapter.Down
         holder.fileSize.setText(DownloadManager.formatFileSize(item.fileSize));
         holder.downloadTime.setText(DownloadManager.formatDownloadTime(item.downloadTime));
         
-        // Set click listener to open file
+        // FIXED: Enhanced click listener to open file with better error handling
         holder.itemView.setOnClickListener(v -> {
             try {
                 File file = new File(item.filepath);
                 if (file.exists()) {
                     Log.d(TAG, "📂 Opening file: " + item.filename + " at: " + item.filepath);
                     
-                    // Create intent to open file
-                    Intent intent = new Intent(Intent.ACTION_VIEW);
+                    openFileWithCompatibleApp(file, item);
                     
-                    // Use FileProvider to get URI for the file
-                    Uri uri;
-                    try {
-                        uri = androidx.core.content.FileProvider.getUriForFile(
-                            context,
-                            context.getPackageName() + ".fileprovider",
-                            file
-                        );
-                        Log.d(TAG, "✅ FileProvider URI created: " + uri.toString());
-                    } catch (IllegalArgumentException e) {
-                        Log.e(TAG, "❌ FileProvider failed, trying content URI", e);
-                        // Fallback to content URI
-                        uri = Uri.fromFile(file);
-                    }
-                    
-                    // Set data and type
-                    String mimeType = getMimeType(item.filename);
-                    Log.d(TAG, "🔍 Detected MIME type: " + mimeType);
-                    
-                    intent.setDataAndType(uri, mimeType);
-                    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    
-                    // Try to start the activity
-                    try {
-                        context.startActivity(Intent.createChooser(intent, "Open " + item.filename));
-                        Log.d(TAG, "✅ File opened successfully: " + item.filename);
-                    } catch (android.content.ActivityNotFoundException e) {
-                        Log.w(TAG, "⚠️ No app found to open file: " + item.filename, e);
-                        Toast.makeText(context, "No app found to open this file type: " + mimeType, Toast.LENGTH_LONG).show();
-                    }
                 } else {
                     Log.w(TAG, "📄 File not found: " + item.filepath);
-                    Toast.makeText(context, "File not found: " + item.filename, Toast.LENGTH_SHORT).show();
+                    Toast.makeText(context, "File not found: " + item.filename + "\n\nFile may have been moved or deleted.", Toast.LENGTH_LONG).show();
                     
                     // Remove from list since file doesn't exist
                     downloads.remove(position);
@@ -108,6 +76,92 @@ public class DownloadsAdapter extends RecyclerView.Adapter<DownloadsAdapter.Down
         });
     }
     
+    // FIXED: Enhanced file opening with better app detection
+    private void openFileWithCompatibleApp(File file, DownloadItem item) {
+        try {
+            // Create intent to open file
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            
+            // Use FileProvider to get URI for the file with better error handling
+            Uri uri;
+            try {
+                uri = androidx.core.content.FileProvider.getUriForFile(
+                    context,
+                    context.getPackageName() + ".fileprovider",
+                    file
+                );
+                Log.d(TAG, "✅ FileProvider URI created: " + uri.toString());
+            } catch (IllegalArgumentException e) {
+                Log.e(TAG, "❌ FileProvider failed, trying content URI", e);
+                // Fallback to direct file URI (less secure but more compatible)
+                uri = Uri.fromFile(file);
+            }
+            
+            // Get MIME type with improved detection
+            String mimeType = getMimeTypeWithFallback(item.filename);
+            Log.d(TAG, "🔍 Detected MIME type: " + mimeType + " for file: " + item.filename);
+            
+            intent.setDataAndType(uri, mimeType);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            
+            // Try to find compatible apps
+            if (intent.resolveActivity(context.getPackageManager()) != null) {
+                try {
+                    context.startActivity(Intent.createChooser(intent, "Open " + item.filename));
+                    Log.d(TAG, "✅ File opened successfully: " + item.filename);
+                } catch (android.content.ActivityNotFoundException e) {
+                    Log.w(TAG, "⚠️ No app found to open file: " + item.filename, e);
+                    // Try with generic MIME type
+                    intent.setDataAndType(uri, "*/*");
+                    try {
+                        context.startActivity(Intent.createChooser(intent, "Open " + item.filename));
+                        Log.d(TAG, "✅ File opened with generic MIME type: " + item.filename);
+                    } catch (Exception fallbackException) {
+                        showNoAppFoundDialog(item, mimeType);
+                    }
+                }
+            } else {
+                showNoAppFoundDialog(item, mimeType);
+            }
+            
+        } catch (Exception e) {
+            Log.e(TAG, "💥 Error opening file: " + item.filename, e);
+            Toast.makeText(context, "Cannot open file: " + item.filename + "\nError: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+    
+    private void showNoAppFoundDialog(DownloadItem item, String mimeType) {
+        String message = "No app found to open this file type: " + mimeType + 
+                        "\n\nYou may need to install an app that can handle " + 
+                        item.fileDescription.toLowerCase() + " files.";
+        
+        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(context);
+        builder.setTitle("Cannot Open File")
+               .setMessage(message)
+               .setPositiveButton("Try with File Manager", (dialog, which) -> {
+                   openWithFileManager(item);
+               })
+               .setNegativeButton("OK", null)
+               .show();
+    }
+    
+    private void openWithFileManager(DownloadItem item) {
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            Uri uri = Uri.parse(new File(item.filepath).getParent());
+            intent.setDataAndType(uri, "resource/folder");
+            
+            if (intent.resolveActivity(context.getPackageManager()) != null) {
+                context.startActivity(intent);
+            } else {
+                Toast.makeText(context, "No file manager app found", Toast.LENGTH_SHORT).show();
+            }
+        } catch (Exception e) {
+            Toast.makeText(context, "Cannot open file location", Toast.LENGTH_SHORT).show();
+        }
+    }
+    
     @Override
     public int getItemCount() {
         return downloads.size();
@@ -126,15 +180,7 @@ public class DownloadsAdapter extends RecyclerView.Adapter<DownloadsAdapter.Down
                     try {
                         File file = new File(item.filepath);
                         if (file.exists()) {
-                            Intent intent = new Intent(Intent.ACTION_VIEW);
-                            Uri uri = androidx.core.content.FileProvider.getUriForFile(
-                                context,
-                                context.getPackageName() + ".fileprovider",
-                                file
-                            );
-                            intent.setDataAndType(uri, getMimeType(item.filename));
-                            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                            context.startActivity(Intent.createChooser(intent, "Open " + item.filename));
+                            openFileWithCompatibleApp(file, item);
                         }
                     } catch (Exception e) {
                         Toast.makeText(context, "Cannot open file", Toast.LENGTH_SHORT).show();
@@ -151,7 +197,7 @@ public class DownloadsAdapter extends RecyclerView.Adapter<DownloadsAdapter.Down
                                 context.getPackageName() + ".fileprovider",
                                 file
                             );
-                            shareIntent.setType(getMimeType(item.filename));
+                            shareIntent.setType(getMimeTypeWithFallback(item.filename));
                             shareIntent.putExtra(Intent.EXTRA_STREAM, uri);
                             shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                             context.startActivity(Intent.createChooser(shareIntent, "Share " + item.filename));
@@ -166,14 +212,7 @@ public class DownloadsAdapter extends RecyclerView.Adapter<DownloadsAdapter.Down
                     break;
                     
                 case 3: // Show in folder
-                    try {
-                        Intent intent = new Intent(Intent.ACTION_VIEW);
-                        Uri uri = Uri.parse(new File(item.filepath).getParent());
-                        intent.setDataAndType(uri, "resource/folder");
-                        context.startActivity(intent);
-                    } catch (Exception e) {
-                        Toast.makeText(context, "Cannot open folder", Toast.LENGTH_SHORT).show();
-                    }
+                    openWithFileManager(item);
                     break;
             }
         });
@@ -214,7 +253,8 @@ public class DownloadsAdapter extends RecyclerView.Adapter<DownloadsAdapter.Down
         builder.show();
     }
     
-    private String getMimeType(String filename) {
+    // FIXED: Improved MIME type detection with better fallbacks
+    private String getMimeTypeWithFallback(String filename) {
         String extension = "";
         if (filename.contains(".")) {
             extension = filename.substring(filename.lastIndexOf(".") + 1).toLowerCase();
@@ -224,16 +264,17 @@ public class DownloadsAdapter extends RecyclerView.Adapter<DownloadsAdapter.Down
         android.webkit.MimeTypeMap mime = android.webkit.MimeTypeMap.getSingleton();
         String mimeType = mime.getMimeTypeFromExtension(extension);
         
-        // If that fails, use our custom MIME type detection
+        // If that fails, use our enhanced custom MIME type detection
         if (mimeType == null || mimeType.isEmpty()) {
-            mimeType = getCustomMimeType(extension);
+            mimeType = getEnhancedCustomMimeType(extension);
         }
         
         Log.d(TAG, "🔍 File extension: " + extension + " -> MIME type: " + mimeType);
         return mimeType != null ? mimeType : "*/*";
     }
     
-    private String getCustomMimeType(String extension) {
+    // Enhanced MIME type detection with more file types
+    private String getEnhancedCustomMimeType(String extension) {
         switch (extension.toLowerCase()) {
             // Images
             case "jpg":
@@ -249,6 +290,9 @@ public class DownloadsAdapter extends RecyclerView.Adapter<DownloadsAdapter.Down
                 return "image/bmp";
             case "svg":
                 return "image/svg+xml";
+            case "tiff":
+            case "tif":
+                return "image/tiff";
                 
             // Videos
             case "mp4":
@@ -263,6 +307,10 @@ public class DownloadsAdapter extends RecyclerView.Adapter<DownloadsAdapter.Down
                 return "video/x-ms-wmv";
             case "webm":
                 return "video/webm";
+            case "flv":
+                return "video/x-flv";
+            case "m4v":
+                return "video/x-m4v";
                 
             // Audio
             case "mp3":
@@ -275,6 +323,10 @@ public class DownloadsAdapter extends RecyclerView.Adapter<DownloadsAdapter.Down
                 return "audio/aac";
             case "ogg":
                 return "audio/ogg";
+            case "m4a":
+                return "audio/mp4";
+            case "wma":
+                return "audio/x-ms-wma";
                 
             // Documents
             case "pdf":
@@ -296,6 +348,14 @@ public class DownloadsAdapter extends RecyclerView.Adapter<DownloadsAdapter.Down
             case "html":
             case "htm":
                 return "text/html";
+            case "css":
+                return "text/css";
+            case "js":
+                return "text/javascript";
+            case "json":
+                return "application/json";
+            case "xml":
+                return "text/xml";
                 
             // Archives
             case "zip":
@@ -308,12 +368,24 @@ public class DownloadsAdapter extends RecyclerView.Adapter<DownloadsAdapter.Down
                 return "application/x-tar";
             case "gz":
                 return "application/gzip";
+            case "bz2":
+                return "application/x-bzip2";
                 
             // Applications
             case "apk":
                 return "application/vnd.android.package-archive";
             case "exe":
                 return "application/x-msdownload";
+            case "deb":
+                return "application/vnd.debian.binary-package";
+            case "rpm":
+                return "application/x-rpm";
+                
+            // E-books
+            case "epub":
+                return "application/epub+zip";
+            case "mobi":
+                return "application/x-mobipocket-ebook";
                 
             default:
                 return "application/octet-stream";

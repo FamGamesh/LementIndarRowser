@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- FIXED: Chrome-like Tab Counter with improved design -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="48dp"
     android:layout_height="36dp"
@@ -7,6 +8,7 @@
     android:focusable="true"
     android:foreground="?android:attr/selectableItemBackground">
 
+    <!-- Main Tab Count -->
     <TextView
         android:id="@+id/tab_count_text"
         android:layout_width="match_parent"
@@ -14,8 +16,24 @@
         android:gravity="center"
         android:text="1"
         android:textColor="@android:color/white"
-        android:textSize="12sp"
+        android:textSize="14sp"
         android:textStyle="bold"
         android:fontFamily="sans-serif-medium" />
+
+    <!-- Chrome-like underline indicator -->
+    <View
+        android:layout_width="20dp"
+        android:layout_height="2dp"
+        android:background="@android:color/white"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="4dp"
+        android:alpha="0.8" />
+
+    <!-- Chrome-like border effect -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#40FFFFFF"
+        android:layout_gravity="top" />
 
 </FrameLayout>

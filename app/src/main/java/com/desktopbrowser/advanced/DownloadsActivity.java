@@ -81,10 +81,14 @@ public class DownloadsActivity extends AppCompatActivity {
         Log.d(TAG, "📱 Banner ads added to downloads section");
     }
     
+    // FIXED: Improved download loading with better file detection
     private void loadDownloads() {
         try {
             Log.d(TAG, "🔍 Loading downloads from storage");
             downloadItems = downloadManager.getAllDownloads();
+            
+            // FIXED: Also scan Downloads directory for files not in our database
+            scanDownloadsDirectory();
             
             if (downloadItems.isEmpty()) {
                 // Show empty state
@@ -111,6 +115,65 @@ public class DownloadsActivity extends AppCompatActivity {
         }
     }
     
+    // FIXED: Scan Downloads directory for files that might not be in our database
+    private void scanDownloadsDirectory() {
+        try {
+            File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+            if (downloadsDir.exists() && downloadsDir.isDirectory()) {
+                File[] files = downloadsDir.listFiles();
+                if (files != null) {
+                    Log.d(TAG, "🔍 Scanning Downloads directory, found " + files.length + " files");
+                    
+                    for (File file : files) {
+                        if (file.isFile()) {
+                            // Check if this file is already in our download list
+                            boolean alreadyTracked = false;
+                            for (DownloadItem item : downloadItems) {
+                                if (file.getAbsolutePath().equals(item.filepath)) {
+                                    alreadyTracked = true;
+                                    break;
+                                }
+                            }
+                            
+                            // If not tracked, add it to our list
+                            if (!alreadyTracked) {
+                                Log.d(TAG, "📄 Found untracked download: " + file.getName());
+                                addUnTrackedDownload(file);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "💥 Error scanning Downloads directory", e);
+        }
+    }
+    
+    // Add untracked download to our list
+    private void addUnTrackedDownload(File file) {
+        try {
+            DownloadManager.FileTypeInfo typeInfo = downloadManager.intelligentFileTypeDetection(
+                "file://" + file.getAbsolutePath(), file.getName());
+            
+            DownloadItem item = new DownloadItem();
+            item.url = "file://" + file.getAbsolutePath();
+            item.filename = file.getName();
+            item.filepath = file.getAbsolutePath();
+            item.downloadId = String.valueOf(System.currentTimeMillis());
+            item.fileSize = file.length();
+            item.downloadTime = file.lastModified();
+            item.fileType = typeInfo.category;
+            item.fileIcon = typeInfo.icon;
+            item.fileDescription = typeInfo.description;
+            
+            downloadItems.add(0, item); // Add to beginning of list
+            Log.d(TAG, "✅ Added untracked download: " + file.getName());
+            
+        } catch (Exception e) {
+            Log.e(TAG, "💥 Error adding untracked download", e);
+        }
+    }
+    
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         if (item.getItemId() == android.R.id.home) {
@@ -123,7 +186,7 @@ public class DownloadsActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        // Refresh downloads when returning to activity
+        // FIXED: Refresh downloads when returning to activity
         loadDownloads();
         Log.d(TAG, "🔄 Downloads activity resumed - refreshing downloads list");
     }
