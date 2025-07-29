@@ -35,9 +35,12 @@
         <item name="android:textColorSecondary">@color/text_secondary</item>
     </style>
 
-    <!-- Custom PopupMenu style with white text -->
+    <!-- Custom PopupMenu style with improved contrast -->
     <style name="CustomPopupMenuStyle" parent="Widget.MaterialComponents.PopupMenu">
-        <item name="android:textColor">@color/menu_text_color</item>
-        <item name="android:background">@color/primary_dark</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:background">@color/surface_color</item>
+        <item name="android:elevation">8dp</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:padding">8dp</item>
     </style>
 </resources>

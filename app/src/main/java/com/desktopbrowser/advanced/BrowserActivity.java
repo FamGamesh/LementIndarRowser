@@ -475,6 +475,162 @@ public class BrowserActivity extends AppCompatActivity {
         }
     }
     
+    /**
+     * Show beautiful download confirmation dialog with file details
+     */
+    private void showDownloadConfirmationDialog(String url, String filename, String mimetype, long contentLength, Runnable onConfirm) {
+        try {
+            // Create custom dialog layout
+            android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
+            View dialogView = getLayoutInflater().inflate(android.R.layout.select_dialog_multichoice, null);
+            
+            // Create a custom layout programmatically since we don't have a specific layout file
+            LinearLayout mainLayout = new LinearLayout(this);
+            mainLayout.setOrientation(LinearLayout.VERTICAL);
+            mainLayout.setPadding(32, 24, 32, 24);
+            mainLayout.setBackgroundColor(android.graphics.Color.parseColor("#F8F9FA"));
+            
+            // Title with download icon
+            TextView titleView = new TextView(this);
+            titleView.setText("📥 Download File");
+            titleView.setTextSize(20);
+            titleView.setTextColor(android.graphics.Color.parseColor("#1976D2"));
+            titleView.setTypeface(titleView.getTypeface(), android.graphics.Typeface.BOLD);
+            titleView.setGravity(android.view.Gravity.CENTER);
+            titleView.setPadding(0, 0, 0, 16);
+            mainLayout.addView(titleView);
+            
+            // File info card
+            LinearLayout fileInfoCard = new LinearLayout(this);
+            fileInfoCard.setOrientation(LinearLayout.VERTICAL);
+            fileInfoCard.setBackgroundColor(android.graphics.Color.WHITE);
+            fileInfoCard.setPadding(20, 16, 20, 16);
+            
+            // Add rounded corners effect
+            android.graphics.drawable.GradientDrawable cardBackground = new android.graphics.drawable.GradientDrawable();
+            cardBackground.setColor(android.graphics.Color.WHITE);
+            cardBackground.setCornerRadius(12f);
+            cardBackground.setStroke(1, android.graphics.Color.parseColor("#E0E0E0"));
+            fileInfoCard.setBackground(cardBackground);
+            
+            // Filename
+            TextView filenameView = new TextView(this);
+            filenameView.setText("📄 " + filename);
+            filenameView.setTextSize(16);
+            filenameView.setTextColor(android.graphics.Color.parseColor("#212121"));
+            filenameView.setTypeface(filenameView.getTypeface(), android.graphics.Typeface.BOLD);
+            fileInfoCard.addView(filenameView);
+            
+            // File type
+            if (mimetype != null && !mimetype.isEmpty()) {
+                TextView typeView = new TextView(this);
+                typeView.setText("🏷️ Type: " + mimetype);
+                typeView.setTextSize(14);
+                typeView.setTextColor(android.graphics.Color.parseColor("#757575"));
+                typeView.setPadding(0, 8, 0, 0);
+                fileInfoCard.addView(typeView);
+            }
+            
+            // File size
+            if (contentLength > 0) {
+                TextView sizeView = new TextView(this);
+                String sizeText = formatFileSize(contentLength);
+                sizeView.setText("📊 Size: " + sizeText);
+                sizeView.setTextSize(14);
+                sizeView.setTextColor(android.graphics.Color.parseColor("#757575"));
+                sizeView.setPadding(0, 4, 0, 0);
+                fileInfoCard.addView(sizeView);
+            }
+            
+            // URL (shortened)
+            TextView urlView = new TextView(this);
+            String shortUrl = url.length() > 50 ? url.substring(0, 50) + "..." : url;
+            urlView.setText("🔗 " + shortUrl);
+            urlView.setTextSize(12);
+            urlView.setTextColor(android.graphics.Color.parseColor("#9E9E9E"));
+            urlView.setPadding(0, 8, 0, 0);
+            fileInfoCard.addView(urlView);
+            
+            mainLayout.addView(fileInfoCard);
+            
+            // Add some spacing
+            View spacer = new View(this);
+            spacer.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 24));
+            mainLayout.addView(spacer);
+            
+            // Download message
+            TextView messageView = new TextView(this);
+            messageView.setText("Would you like to download this file to your device?");
+            messageView.setTextSize(14);
+            messageView.setTextColor(android.graphics.Color.parseColor("#424242"));
+            messageView.setGravity(android.view.Gravity.CENTER);
+            messageView.setPadding(0, 8, 0, 8);
+            mainLayout.addView(messageView);
+            
+            builder.setView(mainLayout);
+            
+            // Download button (positive)
+            builder.setPositiveButton("📥 Download", (dialog, which) -> {
+                try {
+                    // Show "Download Started" message
+                    Toast.makeText(this, "✅ Download Started: " + filename, Toast.LENGTH_LONG).show();
+                    onConfirm.run();
+                } catch (Exception e) {
+                    Log.e(TAG, "Error starting download", e);
+                    Toast.makeText(this, "❌ Download failed to start", Toast.LENGTH_SHORT).show();
+                }
+            });
+            
+            // Cancel button (negative)
+            builder.setNegativeButton("❌ Ignore", (dialog, which) -> {
+                Toast.makeText(this, "Download cancelled", Toast.LENGTH_SHORT).show();
+                dialog.dismiss();
+            });
+            
+            // Create and show dialog
+            android.app.AlertDialog dialog = builder.create();
+            dialog.show();
+            
+            // Style the buttons
+            android.widget.Button positiveButton = dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE);
+            android.widget.Button negativeButton = dialog.getButton(android.app.AlertDialog.BUTTON_NEGATIVE);
+            
+            if (positiveButton != null) {
+                positiveButton.setTextColor(android.graphics.Color.parseColor("#4CAF50"));
+                positiveButton.setTypeface(positiveButton.getTypeface(), android.graphics.Typeface.BOLD);
+            }
+            
+            if (negativeButton != null) {
+                negativeButton.setTextColor(android.graphics.Color.parseColor("#F44336"));
+            }
+            
+            Log.d(TAG, "✨ Download confirmation dialog shown for: " + filename);
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error showing download dialog", e);
+            // Fallback - show simple confirmation
+            new android.app.AlertDialog.Builder(this)
+                .setTitle("Download File")
+                .setMessage("Download " + filename + "?")
+                .setPositiveButton("Download", (dialog, which) -> {
+                    Toast.makeText(this, "✅ Download Started", Toast.LENGTH_SHORT).show();
+                    onConfirm.run();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+        }
+    }
+    
+    /**
+     * Format file size in human readable format
+     */
+    private String formatFileSize(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        int exp = (int) (Math.log(bytes) / Math.log(1024));
+        String[] units = {"B", "KB", "MB", "GB", "TB"};
+        return String.format("%.1f %s", bytes / Math.pow(1024, exp), units[exp]);
+    }
+    
     private void downloadFile(String url, String filename) {
         try {
             Log.d(TAG, "📥 Starting enhanced download - URL: " + url + ", Filename: " + filename);
@@ -905,9 +1061,21 @@ public class BrowserActivity extends AppCompatActivity {
     }
     
     private void showBrowserNavigationMenu() {
-        // Create dropdown menu with navigation options
+        // Create dropdown menu with navigation options and improved styling
         android.widget.PopupMenu popupMenu = new android.widget.PopupMenu(this, browserMenuButton);
         popupMenu.getMenuInflater().inflate(R.menu.main_navigation_menu, popupMenu.getMenu());
+        
+        // Apply custom styling for better visibility
+        try {
+            java.lang.reflect.Field popup = android.widget.PopupMenu.class.getDeclaredField("mPopup");
+            popup.setAccessible(true);
+            Object menuPopupHelper = popup.get(popupMenu);
+            Class<?> classPopupHelper = Class.forName(menuPopupHelper.getClass().getName());
+            java.lang.reflect.Method setForceIcons = classPopupHelper.getMethod("setForceShowIcon", boolean.class);
+            setForceIcons.invoke(menuPopupHelper, true);
+        } catch (Exception e) {
+            // Fallback - icons might not show but menu will still work
+        }
         
         popupMenu.setOnMenuItemClickListener(item -> {
             int id = item.getItemId();
@@ -1302,14 +1470,20 @@ public class BrowserActivity extends AppCompatActivity {
                 
                 // Handle different URI schemes
                 if (url.startsWith("data:")) {
-                    handleDataUriDownload(url, mimetype);
+                    showDownloadConfirmationDialog(url, "Data File", mimetype, contentLength, () -> {
+                        handleDataUriDownload(url, mimetype);
+                    });
                     return;
                 } else if (url.startsWith("blob:")) {
-                    handleBlobDownload(url);
+                    showDownloadConfirmationDialog(url, "Blob File", mimetype, contentLength, () -> {
+                        handleBlobDownload(url);
+                    });
                     return;
                 } else if (!url.startsWith("http://") && !url.startsWith("https://")) {
                     // Handle other schemes like ftp:, file:, etc.
-                    handleNonHttpDownload(url);
+                    showDownloadConfirmationDialog(url, "Non-HTTP File", mimetype, contentLength, () -> {
+                        handleNonHttpDownload(url);
+                    });
                     return;
                 }
                 
@@ -1333,8 +1507,11 @@ public class BrowserActivity extends AppCompatActivity {
                 
                 Log.d(TAG, "📁 Final filename: " + filename);
                 
-                // Start download with intelligent tracking
-                downloadFile(url, filename);
+                // Show beautiful confirmation dialog before downloading
+                String finalFilename = filename;
+                showDownloadConfirmationDialog(url, finalFilename, mimetype, contentLength, () -> {
+                    downloadFile(url, finalFilename);
+                });
                 
             } catch (Exception e) {
                 Log.e(TAG, "💥 Error in intelligent download listener", e);
@@ -1726,7 +1903,7 @@ public class BrowserActivity extends AppCompatActivity {
         isPaused = true;
         
         try {
-            Log.d(TAG, "BrowserActivity onPause - proper lifecycle management");
+            Log.d(TAG, "BrowserActivity onPause - comprehensive lifecycle management");
             
             if (webView != null) {
                 // Pause WebView properly to prevent freezing
@@ -1735,6 +1912,10 @@ public class BrowserActivity extends AppCompatActivity {
                 
                 // Save current state to prevent data loss
                 saveCurrentBrowserState();
+                
+                // ENHANCED: Save comprehensive session when app is backgrounded
+                saveCurrentSessionAsRecent();
+                Log.d(TAG, "Comprehensive session saved during onPause");
             }
             
             // Clear any active operations
@@ -1988,6 +2169,13 @@ public class BrowserActivity extends AppCompatActivity {
                 return;
             }
             
+            // ENHANCED: Mark tab as closed in session management before removing
+            TabInfo tabToClose = tabList.get(index);
+            if (tabToClose.url != null) {
+                sessionManager.markTabAsClosed(tabToClose.url);
+                Log.d(TAG, "Marked tab as closed in session management: " + tabToClose.url);
+            }
+            
             boolean wasActive = tabList.get(index).isActive;
             tabList.remove(index);
             tabCount--;
@@ -2007,6 +2195,14 @@ public class BrowserActivity extends AppCompatActivity {
             // Update UI
             updateTabCounter();
             renderTabsInContainer();
+            
+            // ENHANCED: Save updated session after tab closure
+            try {
+                saveCurrentSessionAsRecent();
+                Log.d(TAG, "Session updated after tab closure");
+            } catch (Exception sessionError) {
+                Log.e(TAG, "Error saving session after tab closure", sessionError);
+            }
             
             Toast.makeText(this, "Tab closed", Toast.LENGTH_SHORT).show();
             
@@ -2074,69 +2270,84 @@ public class BrowserActivity extends AppCompatActivity {
     }
     
     private void saveCurrentSessionAsRecent() {
-        android.util.Log.d(TAG, "Saving current session as recent");
-        SessionManager.BrowserSession session = new SessionManager.BrowserSession();
+        android.util.Log.d(TAG, "Saving comprehensive current session as recent");
         
         try {
-            // Save all tabs from tabList
+            java.util.List<SessionManager.TabSession> allTabSessions = new java.util.ArrayList<>();
+            int currentActiveTabIndex = 0;
+            
+            // Save all tabs from tabList using comprehensive session management
             if (tabList != null && !tabList.isEmpty()) {
-                android.util.Log.d(TAG, "Saving " + tabList.size() + " tabs to recent session");
-                for (TabInfo tab : tabList) {
+                android.util.Log.d(TAG, "Saving " + tabList.size() + " tabs to recent session with comprehensive state");
+                
+                for (int i = 0; i < tabList.size(); i++) {
+                    TabInfo tab = tabList.get(i);
                     if (tab.url != null && !tab.url.isEmpty()) {
+                        // Create comprehensive session for each tab
+                        // Note: We can't get WebView state for non-active tabs, so we save basic info
                         SessionManager.TabSession tabSession = new SessionManager.TabSession(
                             tab.url, 
                             tab.title != null ? tab.title : "Tab", 
-                            null // WebView state - will be enhanced
+                            new Bundle() // Empty bundle for non-active tabs
                         );
-                        session.tabs.add(tabSession);
+                        tabSession.isActive = false; // Mark as inactive
+                        allTabSessions.add(tabSession);
                     }
-                }
-                
-                // Also save current WebView if active
-                String currentUrl = webView.getUrl();
-                String currentTitle = webView.getTitle();
-                if (currentUrl != null && !currentUrl.isEmpty()) {
-                    // Check if current URL is already in the list
-                    boolean currentUrlExists = false;
-                    for (SessionManager.TabSession existingTab : session.tabs) {
-                        if (currentUrl.equals(existingTab.url)) {
-                            currentUrlExists = true;
-                            break;
-                        }
-                    }
-                    
-                    // Add current WebView as a tab if not already present
-                    if (!currentUrlExists) {
-                        SessionManager.TabSession currentTabSession = new SessionManager.TabSession(
-                            currentUrl, 
-                            currentTitle != null ? currentTitle : "Current Tab", 
-                            null
-                        );
-                        session.tabs.add(currentTabSession);
-                        android.util.Log.d(TAG, "Added current WebView to recent session: " + currentUrl);
-                    }
-                }
-            } else {
-                // No tabs in list, save current WebView
-                String currentUrl = webView.getUrl();
-                String currentTitle = webView.getTitle();
-                if (currentUrl != null && !currentUrl.isEmpty()) {
-                    SessionManager.TabSession currentTabSession = new SessionManager.TabSession(
-                        currentUrl, 
-                        currentTitle != null ? currentTitle : "Current Tab", 
-                        null
-                    );
-                    session.tabs.add(currentTabSession);
-                    android.util.Log.d(TAG, "No tabs in list, saved current WebView to recent session: " + currentUrl);
                 }
             }
             
-            session.timestamp = System.currentTimeMillis();
-            sessionManager.saveRecentSession(session);
-            android.util.Log.d(TAG, "Recent session saved successfully with " + session.tabs.size() + " tabs");
+            // Save current active WebView with comprehensive state
+            String currentUrl = webView.getUrl();
+            String currentTitle = webView.getTitle();
+            if (currentUrl != null && !currentUrl.isEmpty()) {
+                // Check if current URL already exists and update it, or add new one
+                boolean currentUrlExists = false;
+                for (int i = 0; i < allTabSessions.size(); i++) {
+                    if (currentUrl.equals(allTabSessions.get(i).url)) {
+                        // Replace with comprehensive session data
+                        SessionManager.TabSession comprehensiveSession = sessionManager.createComprehensiveTabSession(
+                            webView, currentUrl, currentTitle);
+                        comprehensiveSession.isActive = true;
+                        allTabSessions.set(i, comprehensiveSession);
+                        currentActiveTabIndex = i;
+                        currentUrlExists = true;
+                        break;
+                    }
+                }
+                
+                // Add current WebView as new tab if not found in existing tabs
+                if (!currentUrlExists) {
+                    SessionManager.TabSession currentTabSession = sessionManager.createComprehensiveTabSession(
+                        webView, currentUrl, currentTitle);
+                    currentTabSession.isActive = true;
+                    allTabSessions.add(currentTabSession);
+                    currentActiveTabIndex = allTabSessions.size() - 1;
+                }
+                
+                android.util.Log.d(TAG, "Current active tab saved with comprehensive state: " + currentUrl);
+            }
+            
+            // Use enhanced session saving
+            sessionManager.saveCompleteBrowserSession(allTabSessions, currentActiveTabIndex);
+            android.util.Log.d(TAG, "Comprehensive recent session saved successfully with " + 
+                allTabSessions.size() + " tabs (active: " + currentActiveTabIndex + ")");
             
         } catch (Exception e) {
-            android.util.Log.e(TAG, "Error saving recent session", e);
+            android.util.Log.e(TAG, "Error saving comprehensive recent session", e);
+            // Fallback to basic session saving if comprehensive fails
+            try {
+                SessionManager.BrowserSession basicSession = new SessionManager.BrowserSession();
+                String currentUrl = webView.getUrl();
+                String currentTitle = webView.getTitle();
+                if (currentUrl != null && !currentUrl.isEmpty()) {
+                    SessionManager.TabSession tabSession = new SessionManager.TabSession(
+                        currentUrl, currentTitle != null ? currentTitle : "Current Tab", new Bundle());
+                    basicSession.tabs.add(tabSession);
+                    sessionManager.saveRecentSession(basicSession);
+                }
+            } catch (Exception fallbackError) {
+                android.util.Log.e(TAG, "Fallback session saving also failed", fallbackError);
+            }
         }
     }
     

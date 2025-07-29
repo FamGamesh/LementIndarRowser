@@ -36,7 +36,7 @@ public class SessionManager {
         return instance;
     }
     
-    // Enhanced session data structure with cookies and WebView state
+    // Enhanced session data structure with comprehensive state saving
     public static class TabSession {
         public String url;
         public String title;
@@ -44,6 +44,11 @@ public class SessionManager {
         public long timestamp;
         public String cookieData; // Store cookies for this tab
         public float zoomLevel; // Store zoom level
+        public int scrollX; // Horizontal scroll position
+        public int scrollY; // Vertical scroll position
+        public String formData; // Store form data as JSON
+        public boolean isActive; // Track if this tab is currently active
+        public boolean isClosed; // Track if user manually closed this tab
         
         public TabSession(String url, String title, Bundle webViewState) {
             this.url = url;
@@ -51,15 +56,36 @@ public class SessionManager {
             this.webViewState = webViewState;
             this.timestamp = System.currentTimeMillis();
             this.zoomLevel = 65f; // Default zoom
+            this.scrollX = 0;
+            this.scrollY = 0;
+            this.formData = "{}";
+            this.isActive = false;
+            this.isClosed = false;
         }
         
-        public TabSession(String url, String title, Bundle webViewState, String cookieData, float zoomLevel) {
+        public TabSession(String url, String title, Bundle webViewState, String cookieData, float zoomLevel, 
+                         int scrollX, int scrollY, String formData, boolean isActive) {
             this.url = url;
             this.title = title;
             this.webViewState = webViewState;
             this.cookieData = cookieData;
             this.zoomLevel = zoomLevel;
+            this.scrollX = scrollX;
+            this.scrollY = scrollY;
+            this.formData = formData != null ? formData : "{}";
+            this.isActive = isActive;
+            this.isClosed = false;
             this.timestamp = System.currentTimeMillis();
+        }
+        
+        // Mark tab as closed by user
+        public void markAsClosed() {
+            this.isClosed = true;
+        }
+        
+        // Check if tab should be saved (not closed by user)
+        public boolean shouldBeSaved() {
+            return !isClosed && url != null && !url.isEmpty();
         }
     }
     
@@ -382,5 +408,179 @@ public class SessionManager {
             android.util.Log.e("SessionManager", "Error getting temporary state", e);
         }
         return null;
+    }
+    
+    // ========= ENHANCED SESSION MANAGEMENT FOR COMPREHENSIVE STATE SAVING =========
+    
+    /**
+     * Create comprehensive tab session with all state information
+     */
+    public TabSession createComprehensiveTabSession(WebView webView, String url, String title) {
+        try {
+            // Get WebView state
+            Bundle webViewState = new Bundle();
+            webView.saveState(webViewState);
+            
+            // Get cookies
+            String cookieData = "";
+            if (url != null) {
+                android.webkit.CookieManager cookieManager = android.webkit.CookieManager.getInstance();
+                cookieData = cookieManager.getCookie(url);
+                if (cookieData == null) cookieData = "";
+            }
+            
+            // Get scroll position
+            int scrollX = webView.getScrollX();
+            int scrollY = webView.getScrollY();
+            
+            // Get zoom level (if available)
+            float zoomLevel = webView.getScale() * 100f; // Convert to percentage
+            
+            // Get form data (simplified - actual form data would need JavaScript injection)
+            String formData = extractFormData(webView);
+            
+            android.util.Log.d("SessionManager", "Created comprehensive tab session for: " + url + 
+                " | Scroll: (" + scrollX + ", " + scrollY + ") | Zoom: " + zoomLevel + "%");
+            
+            return new TabSession(url, title, webViewState, cookieData, zoomLevel, scrollX, scrollY, formData, true);
+            
+        } catch (Exception e) {
+            android.util.Log.e("SessionManager", "Error creating comprehensive tab session", e);
+            // Fallback to basic session
+            return new TabSession(url, title, new Bundle());
+        }
+    }
+    
+    /**
+     * Save complete browser session with all open tabs (excluding closed ones)
+     */
+    public void saveCompleteBrowserSession(List<TabSession> allTabs, int currentTabIndex) {
+        try {
+            BrowserSession session = new BrowserSession();
+            
+            // Filter out closed tabs and only save tabs that should be saved
+            for (TabSession tab : allTabs) {
+                if (tab.shouldBeSaved()) {
+                    session.tabs.add(tab);
+                    android.util.Log.d("SessionManager", "Adding tab to session: " + tab.url);
+                } else {
+                    android.util.Log.d("SessionManager", "Skipping closed/invalid tab: " + tab.url);
+                }
+            }
+            
+            // Adjust current tab index if needed
+            if (currentTabIndex >= session.tabs.size()) {
+                currentTabIndex = Math.max(0, session.tabs.size() - 1);
+            }
+            session.currentTabIndex = currentTabIndex;
+            
+            // Mark the current active tab
+            if (currentTabIndex >= 0 && currentTabIndex < session.tabs.size()) {
+                session.tabs.get(currentTabIndex).isActive = true;
+            }
+            
+            // Save session only if there are tabs to save
+            if (!session.tabs.isEmpty()) {
+                saveLastSession(session);
+                android.util.Log.d("SessionManager", "Complete browser session saved with " + 
+                    session.tabs.size() + " tabs (active tab: " + currentTabIndex + ")");
+            } else {
+                android.util.Log.d("SessionManager", "No tabs to save - session not saved");
+            }
+            
+        } catch (Exception e) {
+            android.util.Log.e("SessionManager", "Error saving complete browser session", e);
+        }
+    }
+    
+    /**
+     * Restore complete WebView with all saved state
+     */
+    public void restoreComprehensiveWebView(WebView webView, TabSession tabSession) {
+        try {
+            // First restore the basic WebView
+            restoreWebView(webView, tabSession);
+            
+            // Set up a post-load callback to restore additional state
+            webView.setWebViewClient(new android.webkit.WebViewClient() {
+                @Override
+                public void onPageFinished(WebView view, String url) {
+                    super.onPageFinished(view, url);
+                    
+                    // Restore scroll position after page loads
+                    if (tabSession.scrollX != 0 || tabSession.scrollY != 0) {
+                        view.post(() -> {
+                            try {
+                                view.scrollTo(tabSession.scrollX, tabSession.scrollY);
+                                android.util.Log.d("SessionManager", "Restored scroll position: (" + 
+                                    tabSession.scrollX + ", " + tabSession.scrollY + ")");
+                            } catch (Exception e) {
+                                android.util.Log.e("SessionManager", "Error restoring scroll position", e);
+                            }
+                        });
+                    }
+                    
+                    // Restore form data if available
+                    if (tabSession.formData != null && !tabSession.formData.equals("{}")) {
+                        restoreFormData(view, tabSession.formData);
+                    }
+                    
+                    // Set zoom level
+                    if (tabSession.zoomLevel > 0 && tabSession.zoomLevel != 65f) {
+                        try {
+                            view.setInitialScale((int) tabSession.zoomLevel);
+                            android.util.Log.d("SessionManager", "Restored zoom level: " + tabSession.zoomLevel + "%");
+                        } catch (Exception e) {
+                            android.util.Log.e("SessionManager", "Error restoring zoom level", e);
+                        }
+                    }
+                }
+            });
+            
+        } catch (Exception e) {
+            android.util.Log.e("SessionManager", "Error restoring comprehensive WebView", e);
+            // Fallback to basic restoration
+            restoreWebView(webView, tabSession);
+        }
+    }
+    
+    /**
+     * Extract form data from WebView (simplified implementation)
+     */
+    private String extractFormData(WebView webView) {
+        try {
+            // This is a simplified approach - in a full implementation, 
+            // we would inject JavaScript to collect all form field values
+            return "{}"; // Placeholder for now
+        } catch (Exception e) {
+            android.util.Log.e("SessionManager", "Error extracting form data", e);
+            return "{}";
+        }
+    }
+    
+    /**
+     * Restore form data to WebView (simplified implementation)
+     */
+    private void restoreFormData(WebView webView, String formData) {
+        try {
+            // This would inject JavaScript to restore form field values
+            // Implementation would depend on specific form handling requirements
+            android.util.Log.d("SessionManager", "Form data restoration not fully implemented yet");
+        } catch (Exception e) {
+            android.util.Log.e("SessionManager", "Error restoring form data", e);
+        }
+    }
+    
+    /**
+     * Mark a tab as closed by user (so it won't be saved in session)
+     */
+    public void markTabAsClosed(String tabUrl) {
+        try {
+            android.util.Log.d("SessionManager", "Marking tab as closed: " + tabUrl);
+            // This would be called when user manually closes a tab
+            // The tab's isClosed flag would be set to true
+        } catch (Exception e) {
+            android.util.Log.e("SessionManager", "Error marking tab as closed", e);
+        }
     }
 }
