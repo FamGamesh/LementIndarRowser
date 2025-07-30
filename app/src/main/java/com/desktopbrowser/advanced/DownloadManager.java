@@ -161,10 +161,10 @@ public class DownloadManager {
         }
     }
     
-    // Add download to tracking - Fixed method signature to accept String downloadId
-    public void addDownload(String filename, String url, String downloadId) {
+    // ENHANCED: Add download with live progress tracking
+    public void addDownloadWithProgress(String filename, String url, String downloadId) {
         try {
-            Log.d(TAG, "📥 Adding download to tracking: " + filename + ", ID: " + downloadId);
+            Log.d(TAG, "🚀 Adding download with live progress tracking: " + filename + ", ID: " + downloadId);
             
             List<DownloadItem> downloads = getAllDownloads();
             
@@ -177,17 +177,26 @@ public class DownloadManager {
             long fileSize = file.exists() ? file.length() : 0;
             FileTypeInfo typeInfo = intelligentFileTypeDetection(url, filename);
             
-            // Create download item
+            // Create enhanced download item with progress tracking
             DownloadItem item = new DownloadItem();
             item.url = url;
             item.filename = filename;
             item.filepath = filepath;
-            item.downloadId = downloadId; // Store the download ID
+            item.downloadId = downloadId;
             item.fileSize = fileSize;
             item.downloadTime = System.currentTimeMillis();
             item.fileType = typeInfo.category;
             item.fileIcon = typeInfo.icon;
             item.fileDescription = typeInfo.description;
+            
+            // ENHANCED: Initialize progress tracking fields
+            item.downloadProgress = 0;
+            item.downloadStatus = "Starting...";
+            item.downloadSpeed = "0 KB/s";
+            item.estimatedTimeRemaining = "Calculating...";
+            item.bytesDownloaded = 0;
+            item.totalBytes = 0;
+            item.isActive = true;
             
             // Add to list (newest first)
             downloads.add(0, item);
@@ -201,11 +210,75 @@ public class DownloadManager {
             String downloadsJson = gson.toJson(downloads);
             prefs.edit().putString(KEY_DOWNLOADS, downloadsJson).apply();
             
-            Log.d(TAG, "✅ Download added successfully: " + filename + " (" + typeInfo.category + ")");
+            Log.d(TAG, "✅ Enhanced download added successfully with progress tracking: " + filename + " (" + typeInfo.category + ")");
             
         } catch (Exception e) {
-            Log.e(TAG, "💥 Error adding download", e);
+            Log.e(TAG, "💥 Error adding download with progress", e);
         }
+    }
+    
+    // ENHANCED: Update download progress in real-time
+    public void updateDownloadProgress(String downloadId, int progress, long bytesDownloaded, long totalBytes) {
+        try {
+            List<DownloadItem> downloads = getAllDownloads();
+            boolean updated = false;
+            
+            for (DownloadItem item : downloads) {
+                if (downloadId.equals(item.downloadId)) {
+                    // Update progress information
+                    item.downloadProgress = progress;
+                    item.bytesDownloaded = bytesDownloaded;
+                    item.totalBytes = totalBytes;
+                    
+                    // Calculate download speed (simplified)
+                    long currentTime = System.currentTimeMillis();
+                    long timeElapsed = currentTime - item.downloadTime;
+                    if (timeElapsed > 0) {
+                        long speedBytesPerSecond = (bytesDownloaded * 1000) / timeElapsed;
+                        item.downloadSpeed = formatSpeed(speedBytesPerSecond);
+                        
+                        // Calculate estimated time remaining
+                        if (speedBytesPerSecond > 0 && totalBytes > bytesDownloaded) {
+                            long remainingBytes = totalBytes - bytesDownloaded;
+                            long remainingSeconds = remainingBytes / speedBytesPerSecond;
+                            item.estimatedTimeRemaining = formatTimeRemaining(remainingSeconds);
+                        } else {
+                            item.estimatedTimeRemaining = "Almost done...";
+                        }
+                    }
+                    
+                    // Update status
+                    if (progress == 100) {
+                        item.downloadStatus = "✅ Completed";
+                        item.isActive = false;
+                        item.fileSize = totalBytes; // Update final file size
+                    } else {
+                        item.downloadStatus = "📥 Downloading... " + progress + "%";
+                        item.isActive = true;
+                    }
+                    
+                    updated = true;
+                    break;
+                }
+            }
+            
+            if (updated) {
+                // Save updated progress
+                String downloadsJson = gson.toJson(downloads);
+                prefs.edit().putString(KEY_DOWNLOADS, downloadsJson).apply();
+                
+                Log.d(TAG, "📊 Download progress updated: " + downloadId + " - " + progress + "%");
+            }
+            
+        } catch (Exception e) {
+            Log.e(TAG, "💥 Error updating download progress", e);
+        }
+    }
+    
+    // Add download to tracking - Enhanced version
+    public void addDownload(String filename, String url, String downloadId) {
+        // Redirect to enhanced version with progress tracking
+        addDownloadWithProgress(filename, url, downloadId);
     }
     
     // Get all downloads
@@ -216,18 +289,23 @@ public class DownloadManager {
                 Type type = new TypeToken<List<DownloadItem>>(){}.getType();
                 List<DownloadItem> downloads = gson.fromJson(downloadsJson, type);
                 
-                // Filter out files that no longer exist
+                // Filter out files that no longer exist and update file sizes
                 List<DownloadItem> existingDownloads = new ArrayList<>();
                 for (DownloadItem item : downloads) {
                     File file = new File(item.filepath);
                     if (file.exists()) {
+                        // Update file size if it has changed
+                        long currentSize = file.length();
+                        if (item.fileSize != currentSize) {
+                            item.fileSize = currentSize;
+                        }
                         existingDownloads.add(item);
                     } else {
                         Log.d(TAG, "🗑️ Removing non-existent file from list: " + item.filename);
                     }
                 }
                 
-                // Update list if files were removed
+                // Update list if files were removed or sizes changed
                 if (existingDownloads.size() != downloads.size()) {
                     String updatedJson = gson.toJson(existingDownloads);
                     prefs.edit().putString(KEY_DOWNLOADS, updatedJson).apply();
@@ -239,6 +317,34 @@ public class DownloadManager {
             Log.e(TAG, "💥 Error getting downloads", e);
         }
         return new ArrayList<>();
+    }
+    
+    // Get active downloads (currently downloading)
+    public List<DownloadItem> getActiveDownloads() {
+        List<DownloadItem> allDownloads = getAllDownloads();
+        List<DownloadItem> activeDownloads = new ArrayList<>();
+        
+        for (DownloadItem item : allDownloads) {
+            if (item.isActive) {
+                activeDownloads.add(item);
+            }
+        }
+        
+        return activeDownloads;
+    }
+    
+    // Get completed downloads
+    public List<DownloadItem> getCompletedDownloads() {
+        List<DownloadItem> allDownloads = getAllDownloads();
+        List<DownloadItem> completedDownloads = new ArrayList<>();
+        
+        for (DownloadItem item : allDownloads) {
+            if (!item.isActive) {
+                completedDownloads.add(item);
+            }
+        }
+        
+        return completedDownloads;
     }
     
     // Get downloads by type
@@ -274,6 +380,33 @@ public class DownloadManager {
     public void clearAllDownloads() {
         prefs.edit().remove(KEY_DOWNLOADS).apply();
         Log.d(TAG, "🧹 All downloads cleared from tracking");
+    }
+    
+    // ENHANCED: Format download speed
+    public static String formatSpeed(long bytesPerSecond) {
+        if (bytesPerSecond < 1024) {
+            return bytesPerSecond + " B/s";
+        } else if (bytesPerSecond < 1024 * 1024) {
+            return String.format(Locale.US, "%.1f KB/s", bytesPerSecond / 1024.0);
+        } else if (bytesPerSecond < 1024 * 1024 * 1024) {
+            return String.format(Locale.US, "%.1f MB/s", bytesPerSecond / (1024.0 * 1024.0));
+        } else {
+            return String.format(Locale.US, "%.1f GB/s", bytesPerSecond / (1024.0 * 1024.0 * 1024.0));
+        }
+    }
+    
+    // ENHANCED: Format estimated time remaining
+    public static String formatTimeRemaining(long seconds) {
+        if (seconds < 60) {
+            return seconds + " sec";
+        } else if (seconds < 3600) {
+            long minutes = seconds / 60;
+            return minutes + " min";
+        } else {
+            long hours = seconds / 3600;
+            long minutes = (seconds % 3600) / 60;
+            return hours + "h " + minutes + "m";
+        }
     }
     
     // Format file size

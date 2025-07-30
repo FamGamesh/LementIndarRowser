@@ -7,245 +7,231 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
+import androidx.core.content.FileProvider;
 import androidx.recyclerview.widget.RecyclerView;
 import java.io.File;
 import java.util.List;
+import android.os.Handler;
+import android.os.Looper;
 
 public class DownloadsAdapter extends RecyclerView.Adapter<DownloadsAdapter.DownloadViewHolder> {
     
     private static final String TAG = "DownloadsAdapter";
-    private List<DownloadItem> downloads;
-    private Context context;
     
-    public DownloadsAdapter(List<DownloadItem> downloads, Context context) {
-        this.downloads = downloads;
+    private List<DownloadItem> downloadItems;
+    private Context context;
+    private Handler uiHandler;
+    
+    public DownloadsAdapter(List<DownloadItem> downloadItems, Context context) {
+        this.downloadItems = downloadItems;
         this.context = context;
+        this.uiHandler = new Handler(Looper.getMainLooper());
     }
     
     @NonNull
     @Override
     public DownloadViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_download, parent, false);
+        View view = LayoutInflater.from(context).inflate(R.layout.item_download, parent, false);
         return new DownloadViewHolder(view);
     }
     
     @Override
     public void onBindViewHolder(@NonNull DownloadViewHolder holder, int position) {
-        DownloadItem item = downloads.get(position);
+        DownloadItem item = downloadItems.get(position);
         
-        // Set file info
-        holder.fileIcon.setText(item.fileIcon);
-        holder.fileName.setText(item.filename);
-        holder.fileDescription.setText(item.fileDescription);
-        holder.fileSize.setText(DownloadManager.formatFileSize(item.fileSize));
-        holder.downloadTime.setText(DownloadManager.formatDownloadTime(item.downloadTime));
-        
-        // FIXED: Enhanced click listener to open file with better error handling
-        holder.itemView.setOnClickListener(v -> {
-            try {
-                File file = new File(item.filepath);
-                if (file.exists()) {
-                    Log.d(TAG, "📂 Opening file: " + item.filename + " at: " + item.filepath);
-                    
-                    openFileWithCompatibleApp(file, item);
-                    
+        try {
+            // Set file icon
+            holder.fileIcon.setText(item.fileIcon != null ? item.fileIcon : "📄");
+            
+            // Set filename
+            holder.fileName.setText(item.filename != null ? item.filename : "Unknown File");
+            
+            // Set file description
+            holder.fileDescription.setText(item.fileDescription != null ? item.fileDescription : "File");
+            
+            // ENHANCED: Show live progress or file size
+            if (item.isActive && item.downloadProgress > 0) {
+                // Show progress bar and live progress info
+                holder.progressBar.setVisibility(View.VISIBLE);
+                holder.progressBar.setProgress(item.downloadProgress);
+                holder.progressText.setVisibility(View.VISIBLE);
+                holder.progressText.setText(item.getProgressText());
+                
+                // Show live download info
+                holder.fileSize.setText(item.getDownloadInfoSummary());
+                holder.downloadTime.setText(item.getStatusWithIcon());
+                
+                // Set progress bar color based on status
+                if (item.downloadProgress == 100) {
+                    holder.progressBar.getProgressDrawable().setColorFilter(
+                        android.graphics.Color.parseColor("#4CAF50"), 
+                        android.graphics.PorterDuff.Mode.SRC_IN);
                 } else {
-                    Log.w(TAG, "📄 File not found: " + item.filepath);
-                    Toast.makeText(context, "File not found: " + item.filename + "\n\nFile may have been moved or deleted.", Toast.LENGTH_LONG).show();
-                    
-                    // Remove from list since file doesn't exist
-                    downloads.remove(position);
-                    notifyItemRemoved(position);
-                    
-                    // Update download manager
-                    DownloadManager.getInstance(context).removeDownload(item.filepath);
+                    holder.progressBar.getProgressDrawable().setColorFilter(
+                        android.graphics.Color.parseColor("#2196F3"), 
+                        android.graphics.PorterDuff.Mode.SRC_IN);
                 }
-            } catch (Exception e) {
-                Log.e(TAG, "💥 Error opening file: " + item.filename, e);
-                Toast.makeText(context, "Cannot open file: " + item.filename + "\nError: " + e.getMessage(), Toast.LENGTH_LONG).show();
-            }
-        });
-        
-        // Long click for additional options
-        holder.itemView.setOnLongClickListener(v -> {
-            showFileOptions(item, position);
-            return true;
-        });
-    }
-    
-    // FIXED: Enhanced file opening with better app detection
-    private void openFileWithCompatibleApp(File file, DownloadItem item) {
-        try {
-            // Create intent to open file
-            Intent intent = new Intent(Intent.ACTION_VIEW);
-            
-            // Use FileProvider to get URI for the file with better error handling
-            Uri uri;
-            try {
-                uri = androidx.core.content.FileProvider.getUriForFile(
-                    context,
-                    context.getPackageName() + ".fileprovider",
-                    file
-                );
-                Log.d(TAG, "✅ FileProvider URI created: " + uri.toString());
-            } catch (IllegalArgumentException e) {
-                Log.e(TAG, "❌ FileProvider failed, trying content URI", e);
-                // Fallback to direct file URI (less secure but more compatible)
-                uri = Uri.fromFile(file);
-            }
-            
-            // Get MIME type with improved detection
-            String mimeType = getMimeTypeWithFallback(item.filename);
-            Log.d(TAG, "🔍 Detected MIME type: " + mimeType + " for file: " + item.filename);
-            
-            intent.setDataAndType(uri, mimeType);
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            
-            // Try to find compatible apps
-            if (intent.resolveActivity(context.getPackageManager()) != null) {
-                try {
-                    context.startActivity(Intent.createChooser(intent, "Open " + item.filename));
-                    Log.d(TAG, "✅ File opened successfully: " + item.filename);
-                } catch (android.content.ActivityNotFoundException e) {
-                    Log.w(TAG, "⚠️ No app found to open file: " + item.filename, e);
-                    // Try with generic MIME type
-                    intent.setDataAndType(uri, "*/*");
-                    try {
-                        context.startActivity(Intent.createChooser(intent, "Open " + item.filename));
-                        Log.d(TAG, "✅ File opened with generic MIME type: " + item.filename);
-                    } catch (Exception fallbackException) {
-                        showNoAppFoundDialog(item, mimeType);
-                    }
-                }
+                
+                Log.d(TAG, "📊 Showing live progress for: " + item.filename + " - " + item.downloadProgress + "%");
+                
             } else {
-                showNoAppFoundDialog(item, mimeType);
+                // Hide progress bar for completed/inactive downloads
+                holder.progressBar.setVisibility(View.GONE);
+                holder.progressText.setVisibility(View.GONE);
+                
+                // Show normal file info
+                holder.fileSize.setText(DownloadManager.formatFileSize(item.fileSize));
+                holder.downloadTime.setText(DownloadManager.formatDownloadTime(item.downloadTime));
             }
+            
+            // ENHANCED: Set different styling based on download status
+            if (item.isCompleted()) {
+                // Completed download
+                holder.fileName.setTextColor(android.graphics.Color.parseColor("#2E7D32"));
+                holder.statusIndicator.setText("✅");
+                holder.statusIndicator.setVisibility(View.VISIBLE);
+            } else if (item.isDownloading()) {
+                // Active download
+                holder.fileName.setTextColor(android.graphics.Color.parseColor("#1976D2"));
+                holder.statusIndicator.setText("📥");
+                holder.statusIndicator.setVisibility(View.VISIBLE);
+            } else if (item.isFailed()) {
+                // Failed download
+                holder.fileName.setTextColor(android.graphics.Color.parseColor("#D32F2F"));
+                holder.statusIndicator.setText("❌");
+                holder.statusIndicator.setVisibility(View.VISIBLE);
+            } else {
+                // Default
+                holder.fileName.setTextColor(android.graphics.Color.parseColor("#212121"));
+                holder.statusIndicator.setVisibility(View.GONE);
+            }
+            
+            // Set click listener
+            holder.itemView.setOnClickListener(v -> openFile(item));
+            
+            // Set long click listener for options
+            holder.itemView.setOnLongClickListener(v -> {
+                showFileOptions(item, position);
+                return true;
+            });
             
         } catch (Exception e) {
-            Log.e(TAG, "💥 Error opening file: " + item.filename, e);
-            Toast.makeText(context, "Cannot open file: " + item.filename + "\nError: " + e.getMessage(), Toast.LENGTH_LONG).show();
-        }
-    }
-    
-    private void showNoAppFoundDialog(DownloadItem item, String mimeType) {
-        String message = "No app found to open this file type: " + mimeType + 
-                        "\n\nYou may need to install an app that can handle " + 
-                        item.fileDescription.toLowerCase() + " files.";
-        
-        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(context);
-        builder.setTitle("Cannot Open File")
-               .setMessage(message)
-               .setPositiveButton("Try with File Manager", (dialog, which) -> {
-                   openWithFileManager(item);
-               })
-               .setNegativeButton("OK", null)
-               .show();
-    }
-    
-    private void openWithFileManager(DownloadItem item) {
-        try {
-            Intent intent = new Intent(Intent.ACTION_VIEW);
-            Uri uri = Uri.parse(new File(item.filepath).getParent());
-            intent.setDataAndType(uri, "resource/folder");
+            Log.e(TAG, "💥 Error binding download item", e);
             
-            if (intent.resolveActivity(context.getPackageManager()) != null) {
-                context.startActivity(intent);
-            } else {
-                Toast.makeText(context, "No file manager app found", Toast.LENGTH_SHORT).show();
-            }
-        } catch (Exception e) {
-            Toast.makeText(context, "Cannot open file location", Toast.LENGTH_SHORT).show();
+            // Fallback values
+            holder.fileIcon.setText("📄");
+            holder.fileName.setText("Error loading file");
+            holder.fileDescription.setText("Unknown");
+            holder.fileSize.setText("0 B");
+            holder.downloadTime.setText("Unknown");
+            holder.progressBar.setVisibility(View.GONE);
+            holder.progressText.setVisibility(View.GONE);
         }
     }
     
     @Override
     public int getItemCount() {
-        return downloads.size();
+        return downloadItems != null ? downloadItems.size() : 0;
     }
     
-    private void showFileOptions(DownloadItem item, int position) {
-        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(context);
-        builder.setTitle(item.fileIcon + " " + item.filename);
-        
-        String[] options = {"Open", "Share", "Delete", "Show in Folder"};
-        
-        builder.setItems(options, (dialog, which) -> {
-            switch (which) {
-                case 0: // Open
-                    // Trigger the same action as normal click
-                    try {
-                        File file = new File(item.filepath);
-                        if (file.exists()) {
-                            openFileWithCompatibleApp(file, item);
-                        }
-                    } catch (Exception e) {
-                        Toast.makeText(context, "Cannot open file", Toast.LENGTH_SHORT).show();
-                    }
-                    break;
-                    
-                case 1: // Share
-                    try {
-                        File file = new File(item.filepath);
-                        if (file.exists()) {
-                            Intent shareIntent = new Intent(Intent.ACTION_SEND);
-                            Uri uri = androidx.core.content.FileProvider.getUriForFile(
-                                context,
-                                context.getPackageName() + ".fileprovider",
-                                file
-                            );
-                            shareIntent.setType(getMimeTypeWithFallback(item.filename));
-                            shareIntent.putExtra(Intent.EXTRA_STREAM, uri);
-                            shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                            context.startActivity(Intent.createChooser(shareIntent, "Share " + item.filename));
-                        }
-                    } catch (Exception e) {
-                        Toast.makeText(context, "Cannot share file", Toast.LENGTH_SHORT).show();
-                    }
-                    break;
-                    
-                case 2: // Delete
-                    deleteFile(item, position);
-                    break;
-                    
-                case 3: // Show in folder
-                    openWithFileManager(item);
-                    break;
+    // ENHANCED: Open file with appropriate app
+    private void openFile(DownloadItem item) {
+        try {
+            File file = new File(item.filepath);
+            
+            if (!file.exists()) {
+                Toast.makeText(context, "❌ File not found: " + item.filename, Toast.LENGTH_SHORT).show();
+                Log.w(TAG, "File not found: " + item.filepath);
+                return;
             }
-        });
-        
-        builder.show();
+            
+            // If download is still active, show status instead of opening
+            if (item.isActive && item.downloadProgress < 100) {
+                String status = "📥 Download in progress: " + item.downloadProgress + "%";
+                if (item.downloadSpeed != null && !item.downloadSpeed.equals("0 KB/s")) {
+                    status += " at " + item.downloadSpeed;
+                }
+                Toast.makeText(context, status, Toast.LENGTH_LONG).show();
+                return;
+            }
+            
+            // Create file URI using FileProvider
+            Uri fileUri = FileProvider.getUriForFile(
+                context,
+                context.getPackageName() + ".fileprovider",
+                file
+            );
+            
+            // Determine MIME type
+            String mimeType = android.webkit.MimeTypeMap.getSingleton()
+                .getMimeTypeFromExtension(android.webkit.MimeTypeMap.getFileExtensionFromUrl(item.filepath));
+            
+            if (mimeType == null) {
+                mimeType = "*/*";
+            }
+            
+            // Create intent to open file
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.setDataAndType(fileUri, mimeType);
+            intent.setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            
+            try {
+                context.startActivity(Intent.createChooser(intent, "Open " + item.filename));
+                Log.d(TAG, "✅ Opening file: " + item.filename);
+            } catch (Exception e) {
+                Toast.makeText(context, "❌ No app found to open this file type", Toast.LENGTH_SHORT).show();
+                Log.w(TAG, "No app found to open file: " + mimeType, e);
+            }
+            
+        } catch (Exception e) {
+            Log.e(TAG, "💥 Error opening file", e);
+            Toast.makeText(context, "❌ Error opening file: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
     }
     
-    private void deleteFile(DownloadItem item, int position) {
-        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(context);
-        builder.setTitle("Delete File");
-        builder.setMessage("Are you sure you want to delete \"" + item.filename + "\"?");
+    // ENHANCED: Show file options menu
+    private void showFileOptions(DownloadItem item, int position) {
+        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(context);
+        builder.setTitle("📄 " + item.filename);
         
-        builder.setPositiveButton("Delete", (dialog, which) -> {
+        java.util.List<String> options = new java.util.ArrayList<>();
+        java.util.List<Runnable> actions = new java.util.ArrayList<>();
+        
+        // If download is active, show different options
+        if (item.isActive && item.downloadProgress < 100) {
+            options.add("📊 View Progress Details");
+            actions.add(() -> showProgressDetails(item));
+            
+            options.add("⏸️ Cancel Download");
+            actions.add(() -> cancelDownload(item, position));
+        } else {
+            // Normal file options
+            options.add("📂 Open File");
+            actions.add(() -> openFile(item));
+            
+            options.add("📤 Share File");
+            actions.add(() -> shareFile(item));
+            
+            options.add("ℹ️ File Details");
+            actions.add(() -> showFileDetails(item));
+            
+            options.add("🗑️ Delete File");
+            actions.add(() -> deleteFile(item, position));
+        }
+        
+        String[] optionsArray = options.toArray(new String[0]);
+        
+        builder.setItems(optionsArray, (dialog, which) -> {
             try {
-                File file = new File(item.filepath);
-                if (file.exists() && file.delete()) {
-                    Log.d(TAG, "🗑️ File deleted: " + item.filename);
-                    Toast.makeText(context, "File deleted: " + item.filename, Toast.LENGTH_SHORT).show();
-                } else {
-                    Log.w(TAG, "⚠️ Could not delete file: " + item.filename);
-                    Toast.makeText(context, "Could not delete file", Toast.LENGTH_SHORT).show();
-                }
-                
-                // Remove from list and update UI
-                downloads.remove(position);
-                notifyItemRemoved(position);
-                
-                // Update download manager
-                DownloadManager.getInstance(context).removeDownload(item.filepath);
-                
+                actions.get(which).run();
             } catch (Exception e) {
-                Log.e(TAG, "💥 Error deleting file", e);
-                Toast.makeText(context, "Error deleting file", Toast.LENGTH_SHORT).show();
+                Log.e(TAG, "Error executing file option", e);
+                Toast.makeText(context, "Action failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
             }
         });
         
@@ -253,155 +239,189 @@ public class DownloadsAdapter extends RecyclerView.Adapter<DownloadsAdapter.Down
         builder.show();
     }
     
-    // FIXED: Improved MIME type detection with better fallbacks
-    private String getMimeTypeWithFallback(String filename) {
-        String extension = "";
-        if (filename.contains(".")) {
-            extension = filename.substring(filename.lastIndexOf(".") + 1).toLowerCase();
+    // ENHANCED: Show detailed progress information
+    private void showProgressDetails(DownloadItem item) {
+        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(context);
+        builder.setTitle("📊 Download Progress");
+        
+        StringBuilder details = new StringBuilder();
+        details.append("📄 File: ").append(item.filename).append("\n\n");
+        details.append("📈 Progress: ").append(item.downloadProgress).append("%\n");
+        details.append("📊 Status: ").append(item.downloadStatus).append("\n");
+        details.append("⚡ Speed: ").append(item.downloadSpeed).append("\n");
+        details.append("⏱️ Time Remaining: ").append(item.estimatedTimeRemaining).append("\n\n");
+        
+        if (item.totalBytes > 0) {
+            details.append("📥 Downloaded: ").append(DownloadManager.formatFileSize(item.bytesDownloaded)).append("\n");
+            details.append("📦 Total Size: ").append(DownloadManager.formatFileSize(item.totalBytes)).append("\n");
         }
         
-        // First try Android's built-in MIME type map
-        android.webkit.MimeTypeMap mime = android.webkit.MimeTypeMap.getSingleton();
-        String mimeType = mime.getMimeTypeFromExtension(extension);
+        details.append("🔗 URL: ").append(item.url);
         
-        // If that fails, use our enhanced custom MIME type detection
-        if (mimeType == null || mimeType.isEmpty()) {
-            mimeType = getEnhancedCustomMimeType(extension);
-        }
-        
-        Log.d(TAG, "🔍 File extension: " + extension + " -> MIME type: " + mimeType);
-        return mimeType != null ? mimeType : "*/*";
+        builder.setMessage(details.toString());
+        builder.setPositiveButton("OK", null);
+        builder.show();
     }
     
-    // Enhanced MIME type detection with more file types
-    private String getEnhancedCustomMimeType(String extension) {
-        switch (extension.toLowerCase()) {
-            // Images
-            case "jpg":
-            case "jpeg":
-                return "image/jpeg";
-            case "png":
-                return "image/png";
-            case "gif":
-                return "image/gif";
-            case "webp":
-                return "image/webp";
-            case "bmp":
-                return "image/bmp";
-            case "svg":
-                return "image/svg+xml";
-            case "tiff":
-            case "tif":
-                return "image/tiff";
-                
-            // Videos
-            case "mp4":
-                return "video/mp4";
-            case "avi":
-                return "video/x-msvideo";
-            case "mkv":
-                return "video/x-matroska";
-            case "mov":
-                return "video/quicktime";
-            case "wmv":
-                return "video/x-ms-wmv";
-            case "webm":
-                return "video/webm";
-            case "flv":
-                return "video/x-flv";
-            case "m4v":
-                return "video/x-m4v";
-                
-            // Audio
-            case "mp3":
-                return "audio/mpeg";
-            case "wav":
-                return "audio/wav";
-            case "flac":
-                return "audio/flac";
-            case "aac":
-                return "audio/aac";
-            case "ogg":
-                return "audio/ogg";
-            case "m4a":
-                return "audio/mp4";
-            case "wma":
-                return "audio/x-ms-wma";
-                
-            // Documents
-            case "pdf":
-                return "application/pdf";
-            case "doc":
-                return "application/msword";
-            case "docx":
-                return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-            case "xls":
-                return "application/vnd.ms-excel";
-            case "xlsx":
-                return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-            case "ppt":
-                return "application/vnd.ms-powerpoint";
-            case "pptx":
-                return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
-            case "txt":
-                return "text/plain";
-            case "html":
-            case "htm":
-                return "text/html";
-            case "css":
-                return "text/css";
-            case "js":
-                return "text/javascript";
-            case "json":
-                return "application/json";
-            case "xml":
-                return "text/xml";
-                
-            // Archives
-            case "zip":
-                return "application/zip";
-            case "rar":
-                return "application/x-rar-compressed";
-            case "7z":
-                return "application/x-7z-compressed";
-            case "tar":
-                return "application/x-tar";
-            case "gz":
-                return "application/gzip";
-            case "bz2":
-                return "application/x-bzip2";
-                
-            // Applications
-            case "apk":
-                return "application/vnd.android.package-archive";
-            case "exe":
-                return "application/x-msdownload";
-            case "deb":
-                return "application/vnd.debian.binary-package";
-            case "rpm":
-                return "application/x-rpm";
-                
-            // E-books
-            case "epub":
-                return "application/epub+zip";
-            case "mobi":
-                return "application/x-mobipocket-ebook";
-                
-            default:
-                return "application/octet-stream";
+    // Cancel active download
+    private void cancelDownload(DownloadItem item, int position) {
+        new android.app.AlertDialog.Builder(context)
+            .setTitle("⏸️ Cancel Download")
+            .setMessage("Cancel download of " + item.filename + "?")
+            .setPositiveButton("Cancel Download", (dialog, which) -> {
+                try {
+                    // Cancel download in Android DownloadManager
+                    android.app.DownloadManager downloadManager = 
+                        (android.app.DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
+                    
+                    if (item.downloadId != null && !item.downloadId.isEmpty()) {
+                        downloadManager.remove(Long.parseLong(item.downloadId));
+                    }
+                    
+                    // Remove from our list
+                    downloadItems.remove(position);
+                    notifyItemRemoved(position);
+                    
+                    Toast.makeText(context, "⏸️ Download cancelled: " + item.filename, Toast.LENGTH_SHORT).show();
+                    
+                } catch (Exception e) {
+                    Log.e(TAG, "Error cancelling download", e);
+                    Toast.makeText(context, "Error cancelling download", Toast.LENGTH_SHORT).show();
+                }
+            })
+            .setNegativeButton("Keep Downloading", null)
+            .show();
+    }
+    
+    // Share file
+    private void shareFile(DownloadItem item) {
+        try {
+            File file = new File(item.filepath);
+            if (!file.exists()) {
+                Toast.makeText(context, "File not found", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            
+            Uri fileUri = FileProvider.getUriForFile(
+                context,
+                context.getPackageName() + ".fileprovider",
+                file
+            );
+            
+            Intent shareIntent = new Intent(Intent.ACTION_SEND);
+            shareIntent.setType("*/*");
+            shareIntent.putExtra(Intent.EXTRA_STREAM, fileUri);
+            shareIntent.putExtra(Intent.EXTRA_TEXT, "Shared from Real Desktop Browser");
+            shareIntent.setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            
+            context.startActivity(Intent.createChooser(shareIntent, "Share " + item.filename));
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error sharing file", e);
+            Toast.makeText(context, "Error sharing file", Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    // Show file details
+    private void showFileDetails(DownloadItem item) {
+        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(context);
+        builder.setTitle("ℹ️ File Details");
+        
+        StringBuilder details = new StringBuilder();
+        details.append("📄 Name: ").append(item.filename).append("\n");
+        details.append("📁 Type: ").append(item.fileDescription).append("\n");
+        details.append("📊 Size: ").append(DownloadManager.formatFileSize(item.fileSize)).append("\n");
+        details.append("📅 Downloaded: ").append(DownloadManager.formatDownloadTime(item.downloadTime)).append("\n");
+        details.append("📍 Location: ").append(item.filepath).append("\n");
+        details.append("🔗 Source: ").append(item.url);
+        
+        builder.setMessage(details.toString());
+        builder.setPositiveButton("OK", null);
+        builder.show();
+    }
+    
+    // Delete file
+    private void deleteFile(DownloadItem item, int position) {
+        new android.app.AlertDialog.Builder(context)
+            .setTitle("🗑️ Delete File")
+            .setMessage("Delete " + item.filename + " permanently?")
+            .setPositiveButton("Delete", (dialog, which) -> {
+                try {
+                    File file = new File(item.filepath);
+                    if (file.exists() && file.delete()) {
+                        // Remove from download manager
+                        DownloadManager.getInstance(context).removeDownload(item.filepath);
+                        
+                        // Remove from adapter
+                        downloadItems.remove(position);
+                        notifyItemRemoved(position);
+                        
+                        Toast.makeText(context, "🗑️ File deleted: " + item.filename, Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(context, "❌ Failed to delete file", Toast.LENGTH_SHORT).show();
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error deleting file", e);
+                    Toast.makeText(context, "Error deleting file", Toast.LENGTH_SHORT).show();
+                }
+            })
+            .setNegativeButton("Cancel", null)
+            .show();
+    }
+    
+    // ENHANCED: Update adapter data with live progress
+    public void updateDownloads(List<DownloadItem> newDownloads) {
+        this.downloadItems.clear();
+        this.downloadItems.addAll(newDownloads);
+        
+        uiHandler.post(() -> {
+            notifyDataSetChanged();
+        });
+        
+        Log.d(TAG, "📊 Downloads list updated with " + newDownloads.size() + " items");
+    }
+    
+    // ENHANCED: Update specific download progress
+    public void updateDownloadProgress(String downloadId, int progress) {
+        for (int i = 0; i < downloadItems.size(); i++) {
+            DownloadItem item = downloadItems.get(i);
+            if (downloadId.equals(item.downloadId)) {
+                final int position = i;
+                uiHandler.post(() -> {
+                    notifyItemChanged(position);
+                });
+                break;
+            }
         }
     }
     
     static class DownloadViewHolder extends RecyclerView.ViewHolder {
-        TextView fileIcon, fileName, fileDescription, fileSize, downloadTime;
+        TextView fileIcon;
+        TextView fileName;
+        TextView fileDescription;
+        TextView fileSize;
+        TextView downloadTime;
+        ImageView actionArrow;
+        
+        // ENHANCED: Progress tracking views
+        ProgressBar progressBar;
+        TextView progressText;
+        TextView statusIndicator;
         
         public DownloadViewHolder(@NonNull View itemView) {
             super(itemView);
+            
             fileIcon = itemView.findViewById(R.id.file_icon);
             fileName = itemView.findViewById(R.id.file_name);
             fileDescription = itemView.findViewById(R.id.file_description);
             fileSize = itemView.findViewById(R.id.file_size);
             downloadTime = itemView.findViewById(R.id.download_time);
+            actionArrow = itemView.findViewById(R.id.action_arrow);
+            
+            // ENHANCED: Initialize progress views
+            progressBar = itemView.findViewById(R.id.download_progress);
+            progressText = itemView.findViewById(R.id.progress_text);
+            statusIndicator = itemView.findViewById(R.id.status_indicator);
         }
     }
 }

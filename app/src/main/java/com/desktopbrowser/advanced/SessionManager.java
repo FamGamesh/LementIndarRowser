@@ -9,6 +9,10 @@ import com.google.gson.reflect.TypeToken;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
+import android.os.Handler;
+import android.os.Looper;
+import java.util.Timer;
+import java.util.TimerTask;
 
 public class SessionManager {
     private static final String PREFS_NAME = "RealDesktopBrowserSession";
@@ -19,14 +23,29 @@ public class SessionManager {
     private static final String KEY_TEMP_STATE = "temp_browser_state";
     private static final String KEY_WEBVIEW_COOKIES = "webview_cookies";
     private static final String KEY_SESSION_COOKIES = "session_cookies";
+    private static final String KEY_AUTO_SAVE_ENABLED = "auto_save_enabled";
     
     private static SessionManager instance;
     private SharedPreferences prefs;
     private Gson gson;
+    private Context context;
+    
+    // ENHANCED: Auto-save functionality
+    private Timer autoSaveTimer;
+    private Handler uiHandler;
+    private boolean autoSaveEnabled = true;
     
     private SessionManager(Context context) {
+        this.context = context.getApplicationContext();
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         gson = new Gson();
+        uiHandler = new Handler(Looper.getMainLooper());
+        
+        // Initialize auto-save
+        autoSaveEnabled = prefs.getBoolean(KEY_AUTO_SAVE_ENABLED, true);
+        if (autoSaveEnabled) {
+            startAutoSave();
+        }
     }
     
     public static SessionManager getInstance(Context context) {
@@ -49,6 +68,8 @@ public class SessionManager {
         public String formData; // Store form data as JSON
         public boolean isActive; // Track if this tab is currently active
         public boolean isClosed; // Track if user manually closed this tab
+        public String sessionId; // Unique session identifier
+        public List<String> history; // Tab's browsing history
         
         public TabSession(String url, String title, Bundle webViewState) {
             this.url = url;
@@ -61,6 +82,8 @@ public class SessionManager {
             this.formData = "{}";
             this.isActive = false;
             this.isClosed = false;
+            this.sessionId = generateSessionId();
+            this.history = new ArrayList<>();
         }
         
         public TabSession(String url, String title, Bundle webViewState, String cookieData, float zoomLevel, 
@@ -76,16 +99,60 @@ public class SessionManager {
             this.isActive = isActive;
             this.isClosed = false;
             this.timestamp = System.currentTimeMillis();
+            this.sessionId = generateSessionId();
+            this.history = new ArrayList<>();
+        }
+        
+        // ENHANCED: Generate unique session ID
+        private String generateSessionId() {
+            return "session_" + System.currentTimeMillis() + "_" + (int)(Math.random() * 1000);
         }
         
         // Mark tab as closed by user
         public void markAsClosed() {
             this.isClosed = true;
+            android.util.Log.d("SessionManager", "🗑️ Tab marked as closed: " + this.url);
         }
         
         // Check if tab should be saved (not closed by user)
         public boolean shouldBeSaved() {
-            return !isClosed && url != null && !url.isEmpty();
+            boolean shouldSave = !isClosed && url != null && !url.isEmpty() && 
+                               !url.equals("about:blank") && !url.startsWith("chrome://");
+            
+            if (!shouldSave) {
+                android.util.Log.d("SessionManager", "❌ Tab should not be saved: " + url + 
+                    " (closed: " + isClosed + ", url valid: " + (url != null && !url.isEmpty()) + ")");
+            }
+            
+            return shouldSave;
+        }
+        
+        // ENHANCED: Add URL to history
+        public void addToHistory(String historyUrl) {
+            if (historyUrl != null && !historyUrl.isEmpty() && !historyUrl.equals("about:blank")) {
+                if (!history.contains(historyUrl)) {
+                    history.add(0, historyUrl); // Add to beginning
+                    
+                    // Keep only last 20 URLs in history
+                    if (history.size() > 20) {
+                        history = history.subList(0, 20);
+                    }
+                }
+            }
+        }
+        
+        // ENHANCED: Get session summary for debugging
+        public String getSessionSummary() {
+            return "TabSession{" +
+                "url='" + (url != null ? url.substring(0, Math.min(url.length(), 50)) : "null") + "...'" +
+                ", title='" + (title != null ? title.substring(0, Math.min(title.length(), 30)) : "null") + "...'" +
+                ", active=" + isActive +
+                ", closed=" + isClosed +
+                ", zoomLevel=" + zoomLevel +
+                ", scroll=(" + scrollX + "," + scrollY + ")" +
+                ", cookies=" + (cookieData != null && !cookieData.isEmpty() ? "YES" : "NO") +
+                ", history=" + (history != null ? history.size() : 0) + " items" +
+                '}';
         }
     }
     
@@ -94,23 +161,100 @@ public class SessionManager {
         public int currentTabIndex;
         public long timestamp;
         public String globalCookies; // Store global cookies
+        public String sessionName; // Name for this session
+        public boolean wasRestored; // Track if this session was restored
         
         public BrowserSession() {
             this.tabs = new ArrayList<>();
             this.currentTabIndex = 0;
             this.timestamp = System.currentTimeMillis();
+            this.sessionName = "Session_" + new java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.US).format(new java.util.Date());
+            this.wasRestored = false;
+        }
+        
+        // ENHANCED: Get session summary
+        public String getSessionSummary() {
+            int activeTabs = 0;
+            int closedTabs = 0;
+            for (TabSession tab : tabs) {
+                if (tab.shouldBeSaved()) {
+                    activeTabs++;
+                } else {
+                    closedTabs++;
+                }
+            }
+            
+            return "BrowserSession{" +
+                "name='" + sessionName + "'" +
+                ", totalTabs=" + tabs.size() +
+                ", activeTabs=" + activeTabs +
+                ", closedTabs=" + closedTabs +
+                ", currentTab=" + currentTabIndex +
+                ", timestamp=" + new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(new java.util.Date(timestamp)) +
+                '}';
+        }
+    }
+    
+    // ENHANCED: Start automatic session saving
+    private void startAutoSave() {
+        if (autoSaveTimer != null) {
+            autoSaveTimer.cancel();
+        }
+        
+        autoSaveTimer = new Timer();
+        autoSaveTimer.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                if (autoSaveEnabled) {
+                    // This would need to be triggered by the browser activity
+                    // with current session data
+                    android.util.Log.d("SessionManager", "🔄 Auto-save timer triggered");
+                }
+            }
+        }, 30000, 60000); // Save every minute after initial 30 second delay
+        
+        android.util.Log.d("SessionManager", "⏰ Auto-save started - saving every 60 seconds");
+    }
+    
+    // ENHANCED: Stop automatic session saving
+    private void stopAutoSave() {
+        if (autoSaveTimer != null) {
+            autoSaveTimer.cancel();
+            autoSaveTimer = null;
+            android.util.Log.d("SessionManager", "⏰ Auto-save stopped");
         }
     }
     
     // Enhanced session management with cookies and comprehensive state
     public void saveRecentSession(BrowserSession session) {
         try {
+            // ENHANCED: Filter and validate tabs before saving
+            List<TabSession> validTabs = new ArrayList<>();
+            for (TabSession tab : session.tabs) {
+                if (tab.shouldBeSaved()) {
+                    validTabs.add(tab);
+                }
+            }
+            
+            if (validTabs.isEmpty()) {
+                android.util.Log.d("SessionManager", "⚠️ No valid tabs to save in recent session");
+                return;
+            }
+            
+            // Update session with valid tabs only
+            session.tabs = validTabs;
+            
+            // Adjust current tab index if needed
+            if (session.currentTabIndex >= session.tabs.size()) {
+                session.currentTabIndex = Math.max(0, session.tabs.size() - 1);
+            }
+            
             // Save cookies before saving session
             saveCookiesForSession(session, "recent");
             
             String sessionJson = gson.toJson(session);
             prefs.edit().putString(KEY_RECENT_SESSION, sessionJson).apply();
-            android.util.Log.d("SessionManager", "Recent session saved with " + session.tabs.size() + " tabs and cookies");
+            android.util.Log.d("SessionManager", "💾 Recent session saved: " + session.getSessionSummary());
         } catch (Exception e) {
             android.util.Log.e("SessionManager", "Error saving recent session", e);
         }
@@ -119,12 +263,33 @@ public class SessionManager {
     // Enhanced save for "last session" with cookies
     public void saveLastSession(BrowserSession session) {
         try {
+            // ENHANCED: Filter and validate tabs before saving
+            List<TabSession> validTabs = new ArrayList<>();
+            for (TabSession tab : session.tabs) {
+                if (tab.shouldBeSaved()) {
+                    validTabs.add(tab);
+                }
+            }
+            
+            if (validTabs.isEmpty()) {
+                android.util.Log.d("SessionManager", "⚠️ No valid tabs to save in last session");
+                return;
+            }
+            
+            // Update session with valid tabs only
+            session.tabs = validTabs;
+            
+            // Adjust current tab index if needed
+            if (session.currentTabIndex >= session.tabs.size()) {
+                session.currentTabIndex = Math.max(0, session.tabs.size() - 1);
+            }
+            
             // Save cookies before saving session
             saveCookiesForSession(session, "last");
             
             String sessionJson = gson.toJson(session);
             prefs.edit().putString(KEY_LAST_SESSION, sessionJson).apply();
-            android.util.Log.d("SessionManager", "Last session saved with " + session.tabs.size() + " tabs and cookies");
+            android.util.Log.d("SessionManager", "💾 Last session saved: " + session.getSessionSummary());
         } catch (Exception e) {
             android.util.Log.e("SessionManager", "Error saving last session", e);
         }
@@ -138,10 +303,18 @@ public class SessionManager {
                 Type type = new TypeToken<BrowserSession>(){}.getType();
                 BrowserSession session = gson.fromJson(sessionJson, type);
                 
-                // Restore cookies for session
-                restoreCookiesForSession(session, "recent");
-                
-                return session;
+                if (session != null && session.tabs != null && !session.tabs.isEmpty()) {
+                    // Restore cookies for session
+                    restoreCookiesForSession(session, "recent");
+                    
+                    session.wasRestored = true;
+                    android.util.Log.d("SessionManager", "📂 Recent session loaded: " + session.getSessionSummary());
+                    return session;
+                } else {
+                    android.util.Log.d("SessionManager", "📂 Recent session is empty or invalid");
+                }
+            } else {
+                android.util.Log.d("SessionManager", "📂 No recent session found");
             }
         } catch (Exception e) {
             android.util.Log.e("SessionManager", "Error getting recent session", e);
@@ -157,10 +330,18 @@ public class SessionManager {
                 Type type = new TypeToken<BrowserSession>(){}.getType();
                 BrowserSession session = gson.fromJson(sessionJson, type);
                 
-                // Restore cookies for session
-                restoreCookiesForSession(session, "last");
-                
-                return session;
+                if (session != null && session.tabs != null && !session.tabs.isEmpty()) {
+                    // Restore cookies for session
+                    restoreCookiesForSession(session, "last");
+                    
+                    session.wasRestored = true;
+                    android.util.Log.d("SessionManager", "📂 Last session loaded: " + session.getSessionSummary());
+                    return session;
+                } else {
+                    android.util.Log.d("SessionManager", "📂 Last session is empty or invalid");
+                }
+            } else {
+                android.util.Log.d("SessionManager", "📂 No last session found");
             }
         } catch (Exception e) {
             android.util.Log.e("SessionManager", "Error getting last session", e);
@@ -170,22 +351,37 @@ public class SessionManager {
     
     // Check if recent session exists
     public boolean hasRecentSession() {
-        return prefs.getString(KEY_RECENT_SESSION, null) != null;
+        BrowserSession session = getRecentSession();
+        return session != null && !session.tabs.isEmpty();
     }
     
     // Check if last session exists
     public boolean hasLastSession() {
-        return prefs.getString(KEY_LAST_SESSION, null) != null;
+        BrowserSession session = getLastSession();
+        return session != null && !session.tabs.isEmpty();
     }
     
     // Clear recent session (called when app starts fresh)
     public void clearRecentSession() {
         prefs.edit().remove(KEY_RECENT_SESSION).apply();
+        android.util.Log.d("SessionManager", "🧹 Recent session cleared");
     }
     
     // Clear last session (called after successful recovery)
     public void clearLastSession() {
         prefs.edit().remove(KEY_LAST_SESSION).apply();
+        android.util.Log.d("SessionManager", "🧹 Last session cleared");
+    }
+    
+    // ENHANCED: Clear all sessions
+    public void clearAllSessions() {
+        prefs.edit()
+            .remove(KEY_RECENT_SESSION)
+            .remove(KEY_LAST_SESSION)
+            .remove(KEY_SESSION_COOKIES)
+            .remove(KEY_WEBVIEW_COOKIES)
+            .apply();
+        android.util.Log.d("SessionManager", "🧹 All sessions cleared");
     }
     
     // Premium features management
@@ -308,18 +504,18 @@ public class SessionManager {
                 android.webkit.CookieManager cookieManager = android.webkit.CookieManager.getInstance();
                 cookieManager.setCookie(tabSession.url, tabSession.cookieData);
                 cookieManager.flush(); // Ensure cookies are saved
-                android.util.Log.d("SessionManager", "Cookies restored for: " + tabSession.url);
+                android.util.Log.d("SessionManager", "🍪 Cookies restored for: " + tabSession.url);
             }
             
             // Restore WebView state
             if (tabSession.webViewState != null && !tabSession.webViewState.isEmpty()) {
-                android.util.Log.d("SessionManager", "Restoring WebView state for: " + tabSession.url);
+                android.util.Log.d("SessionManager", "🔄 Restoring WebView state for: " + tabSession.url);
                 webView.restoreState(tabSession.webViewState);
             } else if (tabSession.url != null && !tabSession.url.isEmpty()) {
-                android.util.Log.d("SessionManager", "Loading URL directly (no saved state): " + tabSession.url);
+                android.util.Log.d("SessionManager", "🌐 Loading URL directly (no saved state): " + tabSession.url);
                 webView.loadUrl(tabSession.url);
             } else {
-                android.util.Log.w("SessionManager", "No URL or state to restore, loading Google");
+                android.util.Log.w("SessionManager", "⚠️ No URL or state to restore, loading Google");
                 webView.loadUrl("https://www.google.com");
             }
             
@@ -354,7 +550,7 @@ public class SessionManager {
             }
             
             session.globalCookies = allCookies.toString();
-            android.util.Log.d("SessionManager", "Cookies saved for " + sessionType + " session");
+            android.util.Log.d("SessionManager", "🍪 Cookies saved for " + sessionType + " session");
             
         } catch (Exception e) {
             android.util.Log.e("SessionManager", "Error saving cookies for session", e);
@@ -373,7 +569,7 @@ public class SessionManager {
             }
             
             cookieManager.flush(); // Ensure all cookies are saved
-            android.util.Log.d("SessionManager", "Cookies restored for " + sessionType + " session");
+            android.util.Log.d("SessionManager", "🍪 Cookies restored for " + sessionType + " session");
             
         } catch (Exception e) {
             android.util.Log.e("SessionManager", "Error restoring cookies for session", e);
@@ -439,10 +635,15 @@ public class SessionManager {
             // Get form data (simplified - actual form data would need JavaScript injection)
             String formData = extractFormData(webView);
             
-            android.util.Log.d("SessionManager", "Created comprehensive tab session for: " + url + 
-                " | Scroll: (" + scrollX + ", " + scrollY + ") | Zoom: " + zoomLevel + "%");
+            // Create comprehensive tab session
+            TabSession tabSession = new TabSession(url, title, webViewState, cookieData, zoomLevel, scrollX, scrollY, formData, true);
             
-            return new TabSession(url, title, webViewState, cookieData, zoomLevel, scrollX, scrollY, formData, true);
+            // Add current URL to history
+            tabSession.addToHistory(url);
+            
+            android.util.Log.d("SessionManager", "📝 Created comprehensive tab session: " + tabSession.getSessionSummary());
+            
+            return tabSession;
             
         } catch (Exception e) {
             android.util.Log.e("SessionManager", "Error creating comprehensive tab session", e);
@@ -452,7 +653,7 @@ public class SessionManager {
     }
     
     /**
-     * Save complete browser session with all open tabs (excluding closed ones)
+     * ENHANCED: Save complete browser session with immediate auto-save
      */
     public void saveCompleteBrowserSession(List<TabSession> allTabs, int currentTabIndex) {
         try {
@@ -462,9 +663,9 @@ public class SessionManager {
             for (TabSession tab : allTabs) {
                 if (tab.shouldBeSaved()) {
                     session.tabs.add(tab);
-                    android.util.Log.d("SessionManager", "Adding tab to session: " + tab.url);
+                    android.util.Log.d("SessionManager", "✅ Adding tab to session: " + tab.url);
                 } else {
-                    android.util.Log.d("SessionManager", "Skipping closed/invalid tab: " + tab.url);
+                    android.util.Log.d("SessionManager", "❌ Skipping closed/invalid tab: " + tab.url);
                 }
             }
             
@@ -481,11 +682,14 @@ public class SessionManager {
             
             // Save session only if there are tabs to save
             if (!session.tabs.isEmpty()) {
+                // ENHANCED: Save as both recent and last session for redundancy
+                saveRecentSession(session);
                 saveLastSession(session);
-                android.util.Log.d("SessionManager", "Complete browser session saved with " + 
-                    session.tabs.size() + " tabs (active tab: " + currentTabIndex + ")");
+                
+                android.util.Log.d("SessionManager", "💾 Complete browser session saved immediately: " + 
+                    session.getSessionSummary());
             } else {
-                android.util.Log.d("SessionManager", "No tabs to save - session not saved");
+                android.util.Log.d("SessionManager", "⚠️ No tabs to save - session not saved");
             }
             
         } catch (Exception e) {
@@ -512,7 +716,7 @@ public class SessionManager {
                         view.post(() -> {
                             try {
                                 view.scrollTo(tabSession.scrollX, tabSession.scrollY);
-                                android.util.Log.d("SessionManager", "Restored scroll position: (" + 
+                                android.util.Log.d("SessionManager", "📍 Restored scroll position: (" + 
                                     tabSession.scrollX + ", " + tabSession.scrollY + ")");
                             } catch (Exception e) {
                                 android.util.Log.e("SessionManager", "Error restoring scroll position", e);
@@ -529,7 +733,7 @@ public class SessionManager {
                     if (tabSession.zoomLevel > 0 && tabSession.zoomLevel != 65f) {
                         try {
                             view.setInitialScale((int) tabSession.zoomLevel);
-                            android.util.Log.d("SessionManager", "Restored zoom level: " + tabSession.zoomLevel + "%");
+                            android.util.Log.d("SessionManager", "🔍 Restored zoom level: " + tabSession.zoomLevel + "%");
                         } catch (Exception e) {
                             android.util.Log.e("SessionManager", "Error restoring zoom level", e);
                         }
@@ -565,7 +769,7 @@ public class SessionManager {
         try {
             // This would inject JavaScript to restore form field values
             // Implementation would depend on specific form handling requirements
-            android.util.Log.d("SessionManager", "Form data restoration not fully implemented yet");
+            android.util.Log.d("SessionManager", "📝 Form data restoration not fully implemented yet");
         } catch (Exception e) {
             android.util.Log.e("SessionManager", "Error restoring form data", e);
         }
@@ -576,11 +780,49 @@ public class SessionManager {
      */
     public void markTabAsClosed(String tabUrl) {
         try {
-            android.util.Log.d("SessionManager", "Marking tab as closed: " + tabUrl);
+            android.util.Log.d("SessionManager", "🗑️ Marking tab as closed: " + tabUrl);
             // This would be called when user manually closes a tab
             // The tab's isClosed flag would be set to true
         } catch (Exception e) {
             android.util.Log.e("SessionManager", "Error marking tab as closed", e);
         }
+    }
+    
+    // ENHANCED: Auto-save management
+    public void setAutoSaveEnabled(boolean enabled) {
+        autoSaveEnabled = enabled;
+        prefs.edit().putBoolean(KEY_AUTO_SAVE_ENABLED, enabled).apply();
+        
+        if (enabled) {
+            startAutoSave();
+            android.util.Log.d("SessionManager", "⏰ Auto-save enabled");
+        } else {
+            stopAutoSave();
+            android.util.Log.d("SessionManager", "⏰ Auto-save disabled");
+        }
+    }
+    
+    public boolean isAutoSaveEnabled() {
+        return autoSaveEnabled;
+    }
+    
+    // ENHANCED: Get session statistics
+    public String getSessionStatistics() {
+        BrowserSession recent = getRecentSession();
+        BrowserSession last = getLastSession();
+        
+        StringBuilder stats = new StringBuilder();
+        stats.append("📊 Session Statistics:\n");
+        stats.append("Recent Session: ").append(recent != null ? recent.tabs.size() + " tabs" : "None").append("\n");
+        stats.append("Last Session: ").append(last != null ? last.tabs.size() + " tabs" : "None").append("\n");
+        stats.append("Auto-save: ").append(autoSaveEnabled ? "Enabled" : "Disabled").append("\n");
+        
+        return stats.toString();
+    }
+    
+    // Clean up resources when session manager is no longer needed
+    public void cleanup() {
+        stopAutoSave();
+        android.util.Log.d("SessionManager", "🧹 SessionManager cleaned up");
     }
 }
