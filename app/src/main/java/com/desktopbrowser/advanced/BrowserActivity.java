@@ -12,6 +12,7 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.KeyEvent;
 import android.webkit.DownloadListener;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
@@ -24,12 +25,13 @@ import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.LinearLayout;
 import android.widget.Button;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.Toolbar;
 import android.content.ClipboardManager;
 import android.content.ClipData;
 import android.database.Cursor;
 import android.app.DownloadManager.Query;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
+import androidx.appcompat.widget.PopupMenu;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -49,6 +51,7 @@ public class BrowserActivity extends AppCompatActivity {
             this.isActive = isActive;
         }
     }
+    
     private WebView webView;
     private EditText addressBar;
     private Button browserMenuButton;
@@ -61,47 +64,47 @@ public class BrowserActivity extends AppCompatActivity {
     private boolean isDesktopMode = true; // Default to desktop mode for advanced browsing
     private float currentZoom = 65; // Start at 65% for desktop view
     
-        // Tab management
-        private SessionManager sessionManager;
-        private AdManager adManager;
-        private LinearLayout tabsContainer;
-        private LinearLayout zoomControlsContainer;
-        private Button showUrlStackButton;
-        private Button newTabButton; // Chrome-like new tab button
-        private android.widget.SeekBar zoomSlider;
-        private java.util.List<String> urlStack;
-        private long lastInterstitialTime = 0;
-        
-        // Tab management - Enhanced Chrome-like functionality
-        private int tabCount = 1;
-        private View tabCounterView;
-        private TextView tabCountText;
-        private java.util.List<TabInfo> tabList;
-        
-        // Prevent multiple operations
-        private boolean isRefreshing = false;
-        private long lastRefreshTime = 0;
-        private static final long REFRESH_DEBOUNCE = 2000; // 2 seconds debounce
-        
-        private boolean isNavigating = false;
-        private long lastNavigationTime = 0;
-        private static final long NAVIGATION_DEBOUNCE = 1000; // 1 second debounce
-        
-        // Lifecycle management
-        private boolean isPaused = false;
-        private boolean isDestroyed = false;
-        
-        // Auto-refresh management - ENHANCED
-        private Timer autoRefreshTimer;
-        private boolean autoRefreshEnabled = true;
-        private boolean isMinimized = false; // Track if app is minimized
-        
-        // Zoom crash prevention
-        private boolean isZooming = false;
-        private long lastZoomTime = 0;
-        private static final long ZOOM_DEBOUNCE = 300; // 300ms debounce for zoom
-        private Handler zoomHandler;
-        private Runnable pendingZoomRunnable;
+    // Tab management
+    private SessionManager sessionManager;
+    private AdManager adManager;
+    private LinearLayout tabsContainer;
+    private LinearLayout zoomControlsContainer;
+    private Button showUrlStackButton;
+    private Button newTabButton; // Chrome-like new tab button
+    private android.widget.SeekBar zoomSlider;
+    private java.util.List<String> urlStack;
+    private long lastInterstitialTime = 0;
+    
+    // Tab management - Enhanced Chrome-like functionality
+    private int tabCount = 1;
+    private View tabCounterView;
+    private TextView tabCountText;
+    private java.util.List<TabInfo> tabList;
+    
+    // Prevent multiple operations
+    private boolean isRefreshing = false;
+    private long lastRefreshTime = 0;
+    private static final long REFRESH_DEBOUNCE = 2000; // 2 seconds debounce
+    
+    private boolean isNavigating = false;
+    private long lastNavigationTime = 0;
+    private static final long NAVIGATION_DEBOUNCE = 1000; // 1 second debounce
+    
+    // Lifecycle management
+    private boolean isPaused = false;
+    private boolean isDestroyed = false;
+    
+    // ENHANCED: Auto-refresh management
+    private Timer autoRefreshTimer;
+    private boolean autoRefreshEnabled = true;
+    private boolean isMinimized = false; // Track if app is minimized
+    
+    // Zoom crash prevention
+    private boolean isZooming = false;
+    private long lastZoomTime = 0;
+    private static final long ZOOM_DEBOUNCE = 300; // 300ms debounce for zoom
+    private Handler zoomHandler;
+    private Runnable pendingZoomRunnable;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -168,7 +171,9 @@ public class BrowserActivity extends AppCompatActivity {
         
         // Tab counter setup
         tabCounterView = findViewById(R.id.tab_counter);
-        tabCountText = tabCounterView.findViewById(R.id.tab_count_text);
+        if (tabCounterView != null) {
+            tabCountText = tabCounterView.findViewById(R.id.tab_count_text);
+        }
         
         if (webView == null || addressBar == null || browserMenuButton == null) {
             throw new RuntimeException("Required views not found in layout");
@@ -520,7 +525,7 @@ public class BrowserActivity extends AppCompatActivity {
         
         Log.d(TAG, "📁 Intelligent filename: " + filename);
         
-        // Show enhanced download confirmation with live progress
+        // Show enhanced download confirmation
         showEnhancedDownloadConfirmationDialog(url, filename);
     }
     
@@ -605,7 +610,6 @@ public class BrowserActivity extends AppCompatActivity {
         try {
             // Create enhanced dialog layout
             android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
-            View dialogView = getLayoutInflater().inflate(android.R.layout.select_dialog_multichoice, null);
             
             // Create a custom layout programmatically
             LinearLayout mainLayout = new LinearLayout(this);
@@ -949,7 +953,252 @@ public class BrowserActivity extends AppCompatActivity {
         });
     }
     
-    // ENHANCED AUTO-REFRESH MANAGEMENT
+    // ==================== ESSENTIAL NAVIGATION AND CONTROLS ====================
+    
+    private void setupNavigationControls() {
+        // Setup address bar functionality for web searching
+        if (addressBar != null) {
+            addressBar.setOnKeyListener((v, keyCode, event) -> {
+                if (keyCode == KeyEvent.KEYCODE_ENTER && event.getAction() == KeyEvent.ACTION_DOWN) {
+                    String query = addressBar.getText().toString().trim();
+                    if (!query.isEmpty()) {
+                        navigateToUrl(query);
+                    }
+                    return true;
+                }
+                return false;
+            });
+        }
+        
+        // Setup browser menu button
+        if (browserMenuButton != null) {
+            browserMenuButton.setOnClickListener(v -> showBrowserMenu());
+        }
+        
+        // Setup zoom controls
+        if (zoomInButton != null) {
+            zoomInButton.setOnClickListener(v -> zoomIn());
+        }
+        
+        if (zoomOutButton != null) {
+            zoomOutButton.setOnClickListener(v -> zoomOut());
+        }
+        
+        // Setup tab controls
+        if (newTabButton != null) {
+            newTabButton.setOnClickListener(v -> createNewTab());
+        }
+        
+        if (showUrlStackButton != null) {
+            showUrlStackButton.setOnClickListener(v -> showUrlStackDialog());
+        }
+        
+        if (tabCounterView != null) {
+            tabCounterView.setOnClickListener(v -> showTabSwitcher());
+        }
+    }
+    
+    /**
+     * Navigate to URL or perform search - CRITICAL FOR BASIC FUNCTIONALITY
+     */
+    private void navigateToUrl(String input) {
+        if (input == null || input.trim().isEmpty()) {
+            return;
+        }
+        
+        input = input.trim();
+        String url;
+        
+        // Check if it's a URL or search query
+        if (isUrl(input)) {
+            // It's a URL
+            if (!input.startsWith("http://") && !input.startsWith("https://")) {
+                url = "https://" + input;
+            } else {
+                url = input;
+            }
+        } else {
+            // It's a search query - use Google search
+            try {
+                String encodedQuery = java.net.URLEncoder.encode(input, "UTF-8");
+                url = "https://www.google.com/search?q=" + encodedQuery;
+            } catch (Exception e) {
+                url = "https://www.google.com/search?q=" + input.replace(" ", "+");
+            }
+        }
+        
+        loadNewUrl(url);
+    }
+    
+    /**
+     * Check if input is URL or search query
+     */
+    private boolean isUrl(String input) {
+        return input.contains(".") && 
+               (input.startsWith("http://") || 
+                input.startsWith("https://") || 
+                input.contains(".com") || 
+                input.contains(".org") || 
+                input.contains(".net") ||
+                input.contains(".edu") ||
+                input.contains(".gov") ||
+                android.util.Patterns.WEB_URL.matcher(input).matches());
+    }
+    
+    /**
+     * Load new URL - CRITICAL FOR NAVIGATION
+     */
+    private void loadNewUrl(String url) {
+        if (webView != null && url != null && !url.trim().isEmpty()) {
+            // Add to history
+            if (historyManager != null) {
+                historyManager.addHistoryItem(url, "Loading...");
+            }
+            
+            // Add to URL stack
+            if (!urlStack.contains(url)) {
+                urlStack.add(0, url);
+                // Keep only last 50 URLs
+                if (urlStack.size() > 50) {
+                    urlStack = urlStack.subList(0, 50);
+                }
+            }
+            
+            // Update address bar
+            if (addressBar != null) {
+                addressBar.setText(url);
+            }
+            
+            // Load URL in WebView
+            webView.loadUrl(url);
+            
+            Log.d(TAG, "🌐 Loading URL: " + url);
+        }
+    }
+    
+    private void loadUrl() {
+        String url = getIntent().getStringExtra("url");
+        if (url != null && !url.trim().isEmpty()) {
+            loadNewUrl(url);
+        } else {
+            // Load default page
+            loadNewUrl("https://www.google.com");
+        }
+    }
+    
+    private void showBrowserMenu() {
+        PopupMenu popup = new PopupMenu(this, browserMenuButton);
+        popup.getMenuInflater().inflate(R.menu.browser_menu, popup.getMenu());
+        
+        popup.setOnMenuItemClickListener(item -> {
+            int id = item.getItemId();
+            if (id == R.id.action_bookmark) {
+                toggleBookmark();
+                return true;
+            } else if (id == R.id.action_desktop_mode) {
+                toggleDesktopMode();
+                return true;
+            } else if (id == R.id.action_history) {
+                openHistory();
+                return true;
+            } else if (id == R.id.action_bookmarks) {
+                openBookmarks();
+                return true;
+            } else if (id == R.id.action_settings) {
+                openSettings();
+                return true;
+            }
+            return false;
+        });
+        
+        popup.show();
+    }
+    
+    private void toggleBookmark() {
+        String url = webView.getUrl();
+        String title = webView.getTitle();
+        
+        if (url != null) {
+            if (bookmarkManager.isBookmarked(url)) {
+                bookmarkManager.removeBookmark(url);
+                Toast.makeText(this, "Bookmark removed", Toast.LENGTH_SHORT).show();
+            } else {
+                bookmarkManager.addBookmark(new Bookmark(title != null ? title : "Untitled", url));
+                Toast.makeText(this, "Bookmark added", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+    
+    private void toggleDesktopMode() {
+        isDesktopMode = !isDesktopMode;
+        
+        if (isDesktopMode) {
+            enableAdvancedDesktopMode();
+            Toast.makeText(this, "Desktop mode enabled", Toast.LENGTH_SHORT).show();
+        } else {
+            // Switch to mobile mode
+            WebSettings webSettings = webView.getSettings();
+            webSettings.setUserAgentString(null); // Reset to default mobile user agent
+            Toast.makeText(this, "Mobile mode enabled", Toast.LENGTH_SHORT).show();
+        }
+        
+        // Reload current page to apply changes
+        webView.reload();
+    }
+    
+    private void openHistory() {
+        Intent intent = new Intent(this, HistoryActivity.class);
+        startActivity(intent);
+    }
+    
+    private void openBookmarks() {
+        Intent intent = new Intent(this, BookmarksActivity.class);
+        startActivity(intent);
+    }
+    
+    private void openSettings() {
+        Intent intent = new Intent(this, SettingsActivity.class);
+        startActivity(intent);
+    }
+    
+    private void zoomIn() {
+        currentZoom = Math.min(currentZoom + 10, 200); // Max 200%
+        applySafeZoom();
+    }
+    
+    private void zoomOut() {
+        currentZoom = Math.max(currentZoom - 10, 25); // Min 25%
+        applySafeZoom();
+    }
+    
+    private void applySafeZoom() {
+        try {
+            if (webView != null && !isDestroyed) {
+                webView.setInitialScale((int) currentZoom);
+                updateZoomLevel();
+                
+                // Update zoom slider if available
+                if (zoomSlider != null) {
+                    zoomSlider.setProgress((int) currentZoom);
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error applying zoom", e);
+        }
+    }
+    
+    private void safeDebouncedZoom(Runnable zoomAction) {
+        if (zoomHandler != null) {
+            if (pendingZoomRunnable != null) {
+                zoomHandler.removeCallbacks(pendingZoomRunnable);
+            }
+            
+            pendingZoomRunnable = zoomAction;
+            zoomHandler.postDelayed(pendingZoomRunnable, ZOOM_DEBOUNCE);
+        }
+    }
+    
+    // ==================== ENHANCED AUTO-REFRESH MANAGEMENT ====================
     
     @Override
     protected void onPause() {
@@ -964,6 +1213,11 @@ public class BrowserActivity extends AppCompatActivity {
         
         // ENHANCED: Save comprehensive session immediately when app is paused
         saveCurrentSessionAsRecent();
+        
+        if (webView != null) {
+            webView.onPause();
+            webView.pauseTimers();
+        }
     }
     
     @Override
@@ -977,6 +1231,11 @@ public class BrowserActivity extends AppCompatActivity {
         // Restart auto-refresh when app comes back to foreground
         if (autoRefreshEnabled) {
             startAutoRefresh();
+        }
+        
+        if (webView != null) {
+            webView.onResume();
+            webView.resumeTimers();
         }
         
         // Restore session if needed
@@ -1017,7 +1276,7 @@ public class BrowserActivity extends AppCompatActivity {
         }
     }
     
-    // ENHANCED SESSION MANAGEMENT
+    // ==================== ENHANCED SESSION MANAGEMENT ====================
     
     /**
      * Save current session as recent session with comprehensive state
@@ -1076,6 +1335,21 @@ public class BrowserActivity extends AppCompatActivity {
         // Zoom slider setup
         if (zoomSlider != null) {
             zoomSlider.setProgress((int) currentZoom);
+            zoomSlider.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+                @Override
+                public void onProgressChanged(android.widget.SeekBar seekBar, int progress, boolean fromUser) {
+                    if (fromUser) {
+                        currentZoom = Math.max(progress, 25); // Min 25%
+                        applySafeZoom();
+                    }
+                }
+                
+                @Override
+                public void onStartTrackingTouch(android.widget.SeekBar seekBar) {}
+                
+                @Override
+                public void onStopTrackingTouch(android.widget.SeekBar seekBar) {}
+            });
         }
     }
     
@@ -1084,17 +1358,63 @@ public class BrowserActivity extends AppCompatActivity {
         Log.d(TAG, "🗂️ Rendering tabs in container");
     }
     
-    private void setupNavigationControls() {
-        // Navigation controls setup
-        Log.d(TAG, "🧭 Setting up navigation controls");
+    private void createNewTab() {
+        // Create new tab functionality
+        Log.d(TAG, "🆕 Creating new tab");
+        loadNewUrl("https://www.google.com");
     }
     
-    private void loadUrl() {
-        String url = getIntent().getStringExtra("url");
-        if (url != null && webView != null) {
-            webView.loadUrl(url);
-            Log.d(TAG, "🌐 Loading URL: " + url);
+    private void showUrlStackDialog() {
+        if (urlStack.isEmpty()) {
+            Toast.makeText(this, "No URL history available", Toast.LENGTH_SHORT).show();
+            return;
         }
+        
+        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
+        builder.setTitle("URL Stack (" + urlStack.size() + " items)");
+        
+        String[] urlArray = urlStack.toArray(new String[0]);
+        builder.setItems(urlArray, (dialog, which) -> {
+            String selectedUrl = urlArray[which];
+            loadNewUrl(selectedUrl);
+        });
+        
+        builder.setNegativeButton("Cancel", null);
+        builder.show();
+    }
+    
+    private void showTabSwitcher() {
+        if (tabList.isEmpty()) {
+            Toast.makeText(this, "No tabs available", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
+        builder.setTitle("Tab Switcher (" + tabList.size() + " tabs)");
+        
+        String[] tabTitles = new String[tabList.size()];
+        for (int i = 0; i < tabList.size(); i++) {
+            TabInfo tab = tabList.get(i);
+            tabTitles[i] = (tab.isActive ? "► " : "") + (tab.title != null ? tab.title : "Tab") +
+                          "\n" + (tab.url != null ? tab.url : "");
+        }
+        
+        builder.setItems(tabTitles, (dialog, which) -> {
+            TabInfo selectedTab = tabList.get(which);
+            if (selectedTab.url != null && !selectedTab.url.isEmpty()) {
+                // Mark all tabs as inactive
+                for (TabInfo tab : tabList) {
+                    tab.isActive = false;
+                }
+                // Mark selected tab as active
+                selectedTab.isActive = true;
+                
+                loadNewUrl(selectedTab.url);
+            }
+        });
+        
+        builder.setNegativeButton("Cancel", null);
+        builder.show();
     }
     
     @Override
@@ -1108,10 +1428,14 @@ public class BrowserActivity extends AppCompatActivity {
         // Save final session
         saveCurrentSessionAsRecent();
         
+        if (webView != null) {
+            webView.destroy();
+        }
+        
         Log.d(TAG, "💀 BrowserActivity destroyed");
     }
     
-    // Inner classes for WebView clients would be implemented here...
+    // Inner classes for WebView clients
     
     private class AdvancedDesktopWebViewClient extends WebViewClient {
         @Override
@@ -1121,7 +1445,36 @@ public class BrowserActivity extends AppCompatActivity {
                 intelligentDownload(url);
                 return true;
             }
+            
+            // Update address bar with new URL
+            if (addressBar != null) {
+                addressBar.setText(url);
+            }
+            
+            // Add to URL stack
+            if (!urlStack.contains(url)) {
+                urlStack.add(0, url);
+            }
+            
             return false;
+        }
+        
+        @Override
+        public void onPageFinished(WebView view, String url) {
+            super.onPageFinished(view, url);
+            
+            // Update history
+            String title = view.getTitle();
+            if (historyManager != null && url != null) {
+                historyManager.addHistoryItem(url, title != null ? title : "Untitled");
+            }
+            
+            // Update address bar
+            if (addressBar != null) {
+                addressBar.setText(url);
+            }
+            
+            updateNavigationButtons();
         }
         
         private boolean isDownloadLink(String url) {
@@ -1147,6 +1500,13 @@ public class BrowserActivity extends AppCompatActivity {
                 }
             }
         }
+        
+        @Override
+        public void onReceivedTitle(WebView view, String title) {
+            super.onReceivedTitle(view, title);
+            // Update current tab title
+            updateCurrentTabInfo(view.getUrl(), title);
+        }
     }
     
     private class IntelligentDownloadListener implements DownloadListener {
@@ -1157,6 +1517,32 @@ public class BrowserActivity extends AppCompatActivity {
             
             String filename = getIntelligentFileName(url, "download");
             showEnhancedDownloadConfirmationDialog(url, filename);
+        }
+    }
+    
+    private void updateNavigationButtons() {
+        // Navigation buttons have been moved to the three-lines menu system
+        // Check if buttons exist before trying to update them (for backwards compatibility)
+        if (backButton != null) {
+            backButton.setEnabled(webView.canGoBack());
+        }
+        if (forwardButton != null) {
+            forwardButton.setEnabled(webView.canGoForward());
+        }
+    }
+    
+    private void updateCurrentTabInfo(String url, String title) {
+        try {
+            // Find and update the active tab
+            for (TabInfo tab : tabList) {
+                if (tab.isActive) {
+                    tab.url = url;
+                    tab.title = title != null ? title : "Tab";
+                    break;
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error updating current tab info", e);
         }
     }
 }
